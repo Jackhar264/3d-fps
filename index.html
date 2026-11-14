@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Hitscan Open-Bay Range — M4</title>
+  <style>
+    * { box-sizing: border-box; user-select: none; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0b0e11;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #e2e8f0;
+    }
+    #gameCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    #crosshair {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      width: 18px;
+      height: 18px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    #crosshair::before, #crosshair::after {
+      content: "";
+      position: absolute;
+      background: rgba(255, 255, 255, 0.85);
+    }
+    #crosshair::before {
+      top: 8px; left: 0; width: 18px; height: 2px;
+    }
+    #crosshair::after {
+      top: 0; left: 8px; width: 2px; height: 18px;
+    }
+    #hud-tl {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      background: rgba(11, 14, 17, 0.78);
+      border: 1px solid #2c3542;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      line-height: 1.45;
+      pointer-events: none;
+    }
+    #hud-br {
+      position: fixed;
+      bottom: 14px;
+      right: 16px;
+      background: rgba(11, 14, 17, 0.82);
+      border: 1px solid #2c3542;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      pointer-events: none;
+    }
+    #overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(9, 12, 16, 0.82);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 20px;
+      cursor: pointer;
+    }
+    #overlay h1 {
+      margin: 0 0 8px;
+      font-size: 1.5rem;
+      color: #e5a93b;
+      letter-spacing: 0.04em;
+    }
+    #overlay p {
+      margin: 4px 0;
+      font-size: 0.9rem;
+      color: #cbd5e1;
+      max-width: 480px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div id="crosshair"></div>
+
+  <div id="hud-tl">
+    <div><b>M4A1 CARBINE</b> (5.56 Hitscan)</div>
+    <div>Hits: <b id="hud-hits" style="color:#38a169;">0</b></div>
+    <div style="color:#94a3b8; font-size:0.72rem; margin-top:2px;">
+      Forward: Front Side Mouse / W | Move: A S D<br>
+      Fire: LMB | ADS: RMB | Reload: R
+    </div>
+  </div>
+
+  <div id="hud-br">
+    AMMO: <span id="hud-ammo" style="color:#e5a93b;">30</span> / 30
+  </div>
+
+  <div id="overlay">
+    <h1>OPEN-BAY SHOOTING RANGE</h1>
+    <p>Click anywhere to lock mouse and enter the bay.</p>
+    <p style="color:#94a3b8; font-size:0.8rem; margin-top:10px;">
+      Front Side Mouse Button (or W) = Walk Forward &bull; A/S/D = Strafe/Back &bull; Shift = Sprint<br>
+      Left Click = Fire &bull; Right Click = ADS &bull; R = Reload &bull; Jump Disabled
+    </p>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    // =========================================================================
+    // 1. SCENE, RENDERER & CAMERA SETUP
+    // =========================================================================
+    const canvas = document.getElementById('gameCanvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87b5de);
+    scene.fog = new THREE.Fog(0x87b5de, 40, 180);
+
+    const BASE_FOV = 70;
+    const ADS_FOV = 46;
+    const camera = new THREE.PerspectiveCamera(BASE_FOV, window.innerWidth / window.innerHeight, 0.05, 300);
+    scene.add(camera);
+
+    const hemiLight = new THREE.HemisphereLight(0xe6f2ff, 0x4b583a, 0.85);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xfff5e4, 1.15);
+    dirLight.position.set(25, 45, 20);
+    scene.add(dirLight);
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // =========================================================================
+    // 2. OUTDOOR OPEN-BAY SHOOTING RANGE GEOMETRY
+    // =========================================================================
+    const BAY_HALF_W = 12;
+    const BAY_LEN = 65;
+
+    // Gravel / packed dirt bay floor
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x6e6252, roughness: 0.95 });
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(BAY_HALF_W * 2 + 10, BAY_LEN + 20), floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(0, 0, -BAY_LEN / 2 + 8);
+    scene.add(floor);
+
+    // Side and back dirt berms
+    const bermMat = new THREE.MeshStandardMaterial({ color: 0x5c4934, roughness: 0.96 });
+    const wallColliders = [];
+
+    function addBerm(x, y, z, w, h, d) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bermMat);
+      mesh.position.set(x, y, z);
+      scene.add(mesh);
+      wallColliders.push(new THREE.Box3().setFromObject(mesh));
+    }
+
+    // Left berm, right berm, backstop berm, and rear bay wall
+    addBerm(-BAY_HALF_W - 2.5, 2.5, -BAY_LEN / 2 + 5, 5, 5, BAY_LEN + 14);
+    addBerm(BAY_HALF_W + 2.5, 2.5, -BAY_LEN / 2 + 5, 5, 5, BAY_LEN + 14);
+    addBerm(0, 3.2, -BAY_LEN - 2, BAY_HALF_W * 2 + 10, 6.4, 6);
+    addBerm(0, 1.5, 11, BAY_HALF_W * 2 + 10, 3.0, 2);
+
+    // Shooting bench / low barricade near firing line
+    const benchMat = new THREE.MeshStandardMaterial({ color: 0x3b2f24, roughness: 0.85 });
+    const bench = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.95, 1.0), benchMat);
+    bench.position.set(-2.2, 0.475, 0);
+    scene.add(bench);
+    wallColliders.push(new THREE.Box3().setFromObject(bench));
+
+    // Distance yardage markers along left berm
+    const postMat = new THREE.MeshStandardMaterial({ color: 0x2d3748, roughness: 0.8 });
+    [15, 30, 50].forEach(yd => {
+      const z = -yd * 0.9144;
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.4, 0.15), postMat);
+      post.position.set(-BAY_HALF_W + 0.4, 0.7, z);
+      scene.add(post);
+    });
+
+    // =========================================================================
+    // 3. HITSCAN STEEL TARGETS
+    // =========================================================================
+    const targets = [];
+    const targetMeshes = [];
+
+    function createTarget(x, z, size = 0.55) {
+      const group = new THREE.Group();
+      group.position.set(x, 0, z);
+
+      const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.35, 8), postMat);
+      stand.position.y = 0.675;
+      group.add(stand);
+
+      const pivot = new THREE.Group();
+      pivot.position.set(0, 1.35, 0);
+      group.add(pivot);
+
+      const plateMat = new THREE.MeshStandardMaterial({
+        color: 0xf1f5f9,
+        roughness: 0.35,
+        metalness: 0.4
+      });
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(size, size * 1.45, 0.04), plateMat);
+      plate.position.set(0, -size * 0.65, 0);
+      pivot.add(plate);
+
+      scene.add(group);
+      const tObj = { pivot, plate, mat: plateMat, swingVel: 0, swingAngle: 0, flashTimer: 0 };
+      plate.userData.target = tObj;
+      targets.push(tObj);
+      targetMeshes.push(plate);
+    }
+
+    createTarget(-4.5, -14, 0.48);
+    createTarget(0.0, -14, 0.48);
+    createTarget(4.5, -14, 0.48);
+    createTarget(-3.0, -28, 0.55);
+    createTarget(3.0, -28, 0.55);
+    createTarget(0.0, -46, 0.65);
+
+    // =========================================================================
+    // 4. BARE-BONES 3D M4 CARBINE VIEWMODEL
+    // =========================================================================
+    const gunGroup = new THREE.Group();
+    const HIP_POS = new THREE.Vector3(0.22, -0.20, -0.42);
+    const ADS_POS = new THREE.Vector3(0.0, -0.135, -0.34);
+    gunGroup.position.copy(HIP_POS);
+    camera.add(gunGroup);
+
+    const blackMetal = new THREE.MeshStandardMaterial({ color: 0x1a1e24, roughness: 0.4, metalness: 0.75 });
+    const darkPolymer = new THREE.MeshStandardMaterial({ color: 0x262b33, roughness: 0.75, metalness: 0.15 });
+
+    // Upper + lower receiver
+    const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.046, 0.068, 0.21), blackMetal);
+    gunGroup.add(receiver);
+
+    // Flat-top red dot optic
+    const opticBase = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.022, 0.065), blackMetal);
+    opticBase.position.set(0, 0.044, -0.01);
+    const opticTube = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.019, 0.075, 16), blackMetal);
+    opticTube.rotation.x = Math.PI / 2;
+    opticTube.position.set(0, 0.064, -0.01);
+    gunGroup.add(opticBase, opticTube);
+
+    // Quad-rail handguard
+    const handguard = new THREE.Mesh(new THREE.BoxGeometry(0.050, 0.054, 0.22), blackMetal);
+    handguard.position.set(0, 0.008, -0.215);
+    gunGroup.add(handguard);
+
+    // A2 front sight post
+    const frontSight = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.042, 0.022), blackMetal);
+    frontSight.position.set(0, 0.048, -0.31);
+    gunGroup.add(frontSight);
+
+    // Exposed barrel & birdcage flash hider
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.010, 0.16, 12), blackMetal);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.set(0, 0.010, -0.40);
+    const flashHider = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.045, 12), blackMetal);
+    flashHider.rotation.x = Math.PI / 2;
+    flashHider.position.set(0, 0.010, -0.49);
+    gunGroup.add(barrel, flashHider);
+
+    // STANAG 30-round magazine
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.13, 0.062), darkPolymer);
+    mag.position.set(0, -0.085, -0.055);
+    mag.rotation.x = -0.18;
+    gunGroup.add(mag);
+
+    // Pistol grip & collapsible M4 stock
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.095, 0.042), darkPolymer);
+    grip.position.set(0, -0.072, 0.065);
+    grip.rotation.x = 0.32;
+    const bufferTube = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.18, 12), blackMetal);
+    bufferTube.rotation.x = Math.PI / 2;
+    bufferTube.position.set(0, 0.012, 0.19);
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.095, 0.13), darkPolymer);
+    stock.position.set(0, -0.015, 0.23);
+    gunGroup.add(grip, bufferTube, stock);
+
+    // Muzzle point anchor + flash sprite
+    const muzzleAnchor = new THREE.Object3D();
+    muzzleAnchor.position.set(0, 0.010, -0.52);
+    gunGroup.add(muzzleAnchor);
+
+    const muzzleFlashMat = new THREE.MeshBasicMaterial({ color: 0xffcf56, transparent: true, opacity: 0.9 });
+    const muzzleFlash = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), muzzleFlashMat);
+    muzzleFlash.visible = false;
+    muzzleAnchor.add(muzzleFlash);
+
+    // =========================================================================
+    // 5. INPUTS (FRONT SIDE MOUSE BUTTON = WALK FORWARD, NO JUMPING)
+    // =========================================================================
+    const player = {
+      pos: new THREE.Vector3(0, 1.7, 5),
+      yaw: 0,
+      pitch: 0,
+      ammo: 30,
+      maxAmmo: 30,
+      reloading: false,
+      ads: false,
+      hits: 0,
+      recoilKick: 0,
+      recoilPitch: 0
+    };
+
+    const keys = {
+      forward: false,
+      backward: false,
+      left: false,
+      right: false,
+      sprint: false
+    };
+
+    let pointerLocked = false;
+    const overlay = document.getElementById('overlay');
+
+    overlay.addEventListener('click', () => {
+      canvas.requestPointerLock();
+    });
+
+    document.addEventListener('pointerlockchange', () => {
+      pointerLocked = (document.pointerLockElement === canvas);
+      overlay.style.display = pointerLocked ? 'none' : 'flex';
+      if (!pointerLocked) {
+        keys.forward = keys.backward = keys.left = keys.right = keys.sprint = false;
+        player.ads = false;
+      }
+    });
+
+    // Prevent browser back/forward navigation on side mouse buttons
+    window.addEventListener('mouseup', e => {
+      if (e.button === 3 || e.button === 4) e.preventDefault();
+      if (e.button === 4) keys.forward = false; // Front side mouse button released
+      if (e.button === 2) player.ads = false;
+    });
+
+    window.addEventListener('mousedown', e => {
+      if (!pointerLocked) return;
+      if (e.button === 3 || e.button === 4) e.preventDefault();
+
+      // Front side mouse button (XBUTTON2 -> button 4) bound to walk forward
+      if (e.button === 4) {
+        keys.forward = true;
+      } else if (e.button === 0) {
+        fireHitscan();
+      } else if (e.button === 2) {
+        player.ads = true;
+      }
+    });
+
+    window.addEventListener('contextmenu', e => e.preventDefault());
+
+    window.addEventListener('mousemove', e => {
+      if (!pointerLocked) return;
+      const sens = player.ads ? 0.0012 : 0.0020;
+      player.yaw -= e.movementX * sens;
+      player.pitch -= e.movementY * sens;
+      player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch));
+    });
+
+    window.addEventListener('keydown', e => {
+      if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.forward = true;
+      if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.backward = true;
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.sprint = true;
+      if (e.code === 'KeyR') reloadM4();
+      // Spacebar / Jump intentionally ignored
+    });
+
+    window.addEventListener('keyup', e => {
+      if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.forward = false;
+      if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.backward = false;
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.sprint = false;
+    });
+
+    // =========================================================================
+    // 6. HITSCAN RAYCASTING, TRACERS & RELOAD
+    // =========================================================================
+    const raycaster = new THREE.Raycaster();
+    const activeTracers = [];
+    const activeSparks = [];
+    let muzzleTimer = 0;
+
+    function spawnTracer(startVec, endVec) {
+      const geo = new THREE.BufferGeometry().setFromPoints([startVec, endVec]);
+      const mat = new THREE.LineBasicMaterial({ color: 0xffe484, transparent: true, opacity: 0.75 });
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+      activeTracers.push({ line, geo, mat, life: 0.09 });
+    }
+
+    function spawnImpactSpark(point, isTarget) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: isTarget ? 0xffd166 : 0xb09e85,
+        transparent: true,
+        opacity: 0.95
+      });
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(isTarget ? 0.045 : 0.055, 6, 6), mat);
+      mesh.position.copy(point);
+      scene.add(mesh);
+      activeSparks.push({ mesh, mat, life: 0.18 });
+    }
+
+    function reloadM4() {
+      if (player.reloading || player.ammo === player.maxAmmo) return;
+      player.reloading = true;
+      player.ads = false;
+      document.getElementById('hud-ammo').innerText = 'RLD';
+      setTimeout(() => {
+        player.ammo = player.maxAmmo;
+        player.reloading = false;
+        document.getElementById('hud-ammo').innerText = player.ammo;
+      }, 1100);
+    }
+
+    function fireHitscan() {
+      if (player.reloading) return;
+      if (player.ammo <= 0) {
+        reloadM4();
+        return;
+      }
+
+      player.ammo--;
+      document.getElementById('hud-ammo').innerText = player.ammo;
+
+      // Recoil & muzzle flash
+      player.recoilKick = 0.045;
+      player.recoilPitch += 0.016;
+      muzzleTimer = 0.04;
+
+      // Instant center-screen hitscan raycast
+      raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+      const hits = raycaster.intersectObjects(scene.children, true);
+
+      const muzzleWorld = new THREE.Vector3();
+      muzzleAnchor.getWorldPosition(muzzleWorld);
+
+      let hitPoint = raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction, 120);
+      let hitTarget = null;
+
+      for (let i = 0; i < hits.length; i++) {
+        const obj = hits[i].object;
+        // Ignore viewmodel parts or tracer lines
+        if (obj.parent === gunGroup || obj.parent === muzzleAnchor || obj.type === 'Line') continue;
+        hitPoint = hits[i].point;
+        if (obj.userData && obj.userData.target) {
+          hitTarget = obj.userData.target;
+        }
+        break;
+      }
+
+      spawnTracer(muzzleWorld, hitPoint);
+      spawnImpactSpark(hitPoint, Boolean(hitTarget));
+
+      if (hitTarget) {
+        hitTarget.swingVel -= 0.16;
+        hitTarget.flashTimer = 0.12;
+        player.hits++;
+        document.getElementById('hud-hits').innerText = player.hits;
+      }
+    }
+
+    // =========================================================================
+    // 7. MAIN SIMULATION & RENDER LOOP
+    // =========================================================================
+    let lastTime = performance.now();
+
+    function animate(now) {
+      const dt = Math.min(0.05, (now - lastTime) * 0.001);
+      lastTime = now;
+
+      // Player grounded movement (WASD + Front Side Mouse Button forward, no jumping)
+      const moveForward = (keys.forward ? 1 : 0) - (keys.backward ? 1 : 0);
+      const moveRight = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+
+      if (moveForward !== 0 || moveRight !== 0) {
+        const speed = (keys.sprint && !player.ads) ? 7.2 : 4.4;
+        const forwardVec = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+        const rightVec = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+
+        const wishDir = new THREE.Vector3()
+          .addScaledVector(forwardVec, moveForward)
+          .addScaledVector(rightVec, moveRight)
+          .normalize();
+
+        const nextPos = player.pos.clone().addScaledVector(wishDir, speed * dt);
+        nextPos.y = 1.7;
+
+        // Simple player radius collision against berms and bench
+        const playerBox = new THREE.Box3(
+          new THREE.Vector3(nextPos.x - 0.35, 0.1, nextPos.z - 0.35),
+          new THREE.Vector3(nextPos.x + 0.35, 1.8, nextPos.z + 0.35)
+        );
+        let blocked = false;
+        for (let i = 0; i < wallColliders.length; i++) {
+          if (playerBox.intersectsBox(wallColliders[i])) {
+            blocked = true;
+            break;
+          }
+        }
+        if (!blocked) player.pos.copy(nextPos);
+      }
+
+      // Smooth recoil recovery & camera orientation
+      player.recoilPitch *= Math.pow(0.001, dt);
+      player.recoilKick *= Math.pow(0.0005, dt);
+
+      camera.position.copy(player.pos);
+      const euler = new THREE.Euler(player.pitch + player.recoilPitch, player.yaw, 0, 'YXZ');
+      camera.quaternion.setFromEuler(euler);
+
+      // Smooth ADS FOV & viewmodel interpolation
+      const targetFov = player.ads ? ADS_FOV : BASE_FOV;
+      camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 16);
+      camera.updateProjectionMatrix();
+
+      const targetGunPos = player.ads ? ADS_POS.clone() : HIP_POS.clone();
+      targetGunPos.z += player.recoilKick;
+      if (player.reloading) targetGunPos.y -= 0.12;
+      gunGroup.position.lerp(targetGunPos, Math.min(1, dt * 18));
+
+      // Muzzle flash
+      if (muzzleTimer > 0) {
+        muzzleTimer -= dt;
+        muzzleFlash.visible = true;
+      } else {
+        muzzleFlash.visible = false;
+      }
+
+      // Steel target swing & hit flash
+      for (let i = 0; i < targets.length; i++) {
+        const t = targets[i];
+        const spring = -18.0 * t.swingAngle;
+        t.swingVel = (t.swingVel + spring * dt) * Math.pow(0.08, dt);
+        t.swingAngle += t.swingVel * dt;
+        t.pivot.rotation.x = t.swingAngle;
+
+        if (t.flashTimer > 0) {
+          t.flashTimer -= dt;
+          t.mat.color.setHex(0x48bb78);
+        } else {
+          t.mat.color.setHex(0xf1f5f9);
+        }
+      }
+
+      // Fade tracers & impact sparks
+      for (let i = activeTracers.length - 1; i >= 0; i--) {
+        const tr = activeTracers[i];
+        tr.life -= dt;
+        tr.mat.opacity = Math.max(0, (tr.life / 0.09) * 0.75);
+        if (tr.life <= 0) {
+          tr.geo.dispose();
+          tr.mat.dispose();
+          scene.remove(tr.line);
+          activeTracers.splice(i, 1);
+        }
+      }
+
+      for (let i = activeSparks.length - 1; i >= 0; i--) {
+        const sp = activeSparks[i];
+        sp.life -= dt;
+        sp.mat.opacity = Math.max(0, sp.life / 0.18);
+        if (sp.life <= 0) {
+          sp.mat.dispose();
+          scene.remove(sp.mesh);
+          activeSparks.splice(i, 1);
+        }
+      }
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
