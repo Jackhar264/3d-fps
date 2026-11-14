@@ -475,8 +475,8 @@
     };
 
     let pointerLocked = false;
-    let mouseDeltaX = 0;
-    let mouseDeltaY = 0;
+    let accumulatedMovementX = 0;
+    let accumulatedMovementY = 0;
     const overlay = document.getElementById('overlay');
     const btnStart = document.getElementById('btnStart');
     const crosshairEl = document.getElementById('crosshair');
@@ -487,8 +487,8 @@
 
     document.addEventListener('pointerlockchange', () => {
       pointerLocked = (document.pointerLockElement === canvas);
-      mouseDeltaX = 0;
-      mouseDeltaY = 0;
+      accumulatedMovementX = 0;
+      accumulatedMovementY = 0;
       overlay.style.display = pointerLocked ? 'none' : 'flex';
       if (!pointerLocked) {
         keys.forward = keys.backward = keys.left = keys.right = keys.sprint = false;
@@ -518,13 +518,12 @@
 
     window.addEventListener('contextmenu', e => e.preventDefault());
 
+    // Accumulate movement deltas asynchronously to ensure zero dropped frames or lockups during fast swipes
     window.addEventListener('mousemove', e => {
       if (!pointerLocked) return;
-      // Only guard against extreme OS cursor-wrap glitches (> 2500px), allowing fast high-DPI flicks
-      if (Math.abs(e.movementX) > 2500 || Math.abs(e.movementY) > 2500) return;
-      mouseDeltaX += e.movementX;
-      mouseDeltaY += e.movementY;
-    });
+      accumulatedMovementX += e.movementX || e.mozMovementX || e.webkitMovementX || 0;
+      accumulatedMovementY += e.movementY || e.mozMovementY || e.webkitMovementY || 0;
+    }, { passive: true });
 
     window.addEventListener('keydown', e => {
       if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.forward = true;
@@ -645,14 +644,15 @@
       const dt = Math.min(0.05, (now - lastTime) * 0.001);
       lastTime = now;
 
-      if (pointerLocked && (mouseDeltaX !== 0 || mouseDeltaY !== 0)) {
-        const baseSens = 0.0020 * (player.ads ? ADS_SENS_SCALE : 1.0);
+      // Consume accumulated mouse deltas synchronously in the render loop for silky smooth rotation at any speed
+      if (pointerLocked && (accumulatedMovementX !== 0 || accumulatedMovementY !== 0)) {
+        const baseSens = 0.0022 * (player.ads ? ADS_SENS_SCALE : 1.0);
         const sens = baseSens * player.sensMult;
-        player.yaw -= mouseDeltaX * sens;
-        player.pitch -= mouseDeltaY * sens;
+        player.yaw -= accumulatedMovementX * sens;
+        player.pitch -= accumulatedMovementY * sens;
         player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch));
-        mouseDeltaX = 0;
-        mouseDeltaY = 0;
+        accumulatedMovementX = 0;
+        accumulatedMovementY = 0;
       }
 
       const moveForward = (keys.forward ? 1 : 0) - (keys.backward ? 1 : 0);
