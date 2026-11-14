@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>3D Hitscan Open-Bay Range — M4</title>
+  <title>3D Hitscan Open-Bay Range — M4 Red Dot</title>
   <style>
     * { box-sizing: border-box; user-select: none; }
     html, body {
@@ -29,11 +29,12 @@
       height: 18px;
       transform: translate(-50%, -50%);
       pointer-events: none;
+      transition: opacity 0.08s;
     }
     #crosshair::before, #crosshair::after {
       content: "";
       position: absolute;
-      background: rgba(255, 255, 255, 0.85);
+      background: rgba(255, 255, 255, 0.78);
     }
     #crosshair::before {
       top: 8px; left: 0; width: 18px; height: 2px;
@@ -68,26 +69,70 @@
     #overlay {
       position: fixed;
       inset: 0;
-      background: rgba(9, 12, 16, 0.82);
+      background: rgba(9, 12, 16, 0.84);
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
       text-align: center;
       padding: 20px;
-      cursor: pointer;
+      z-index: 10;
     }
-    #overlay h1 {
+    .menu-card {
+      background: #151a20;
+      border: 1px solid #2c3542;
+      border-radius: 10px;
+      padding: 22px 26px;
+      max-width: 460px;
+      width: 100%;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75);
+    }
+    .menu-card h1 {
       margin: 0 0 8px;
-      font-size: 1.5rem;
+      font-size: 1.35rem;
       color: #e5a93b;
       letter-spacing: 0.04em;
     }
-    #overlay p {
+    .menu-card p {
       margin: 4px 0;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       color: #cbd5e1;
-      max-width: 480px;
+    }
+    .sens-box {
+      margin: 16px 0;
+      padding: 12px 14px;
+      background: #0b0e11;
+      border: 1px solid #2c3542;
+      border-radius: 8px;
+      text-align: left;
+    }
+    .sens-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    #sensSlider {
+      width: 100%;
+      accent-color: #e5a93b;
+      cursor: pointer;
+    }
+    #btnStart {
+      width: 100%;
+      margin-top: 8px;
+      padding: 12px;
+      background: #c05621;
+      border: 1px solid #dd6b20;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+    }
+    #btnStart:hover {
+      background: #dd6b20;
     }
   </style>
 </head>
@@ -96,11 +141,11 @@
   <div id="crosshair"></div>
 
   <div id="hud-tl">
-    <div><b>M4A1 CARBINE</b> (5.56 Hitscan)</div>
+    <div><b>M4A1 CARBINE</b> (CompM4 Red Dot)</div>
     <div>Hits: <b id="hud-hits" style="color:#38a169;">0</b></div>
     <div style="color:#94a3b8; font-size:0.72rem; margin-top:2px;">
       Forward: Front Side Mouse / W | Move: A S D<br>
-      Fire: LMB | ADS: RMB | Reload: R
+      Fire: LMB | ADS: RMB | Reload: R | Menu: ESC
     </div>
   </div>
 
@@ -109,12 +154,23 @@
   </div>
 
   <div id="overlay">
-    <h1>OPEN-BAY SHOOTING RANGE</h1>
-    <p>Click anywhere to lock mouse and enter the bay.</p>
-    <p style="color:#94a3b8; font-size:0.8rem; margin-top:10px;">
-      Front Side Mouse Button (or W) = Walk Forward &bull; A/S/D = Strafe/Back &bull; Shift = Sprint<br>
-      Left Click = Fire &bull; Right Click = ADS &bull; R = Reload &bull; Jump Disabled
-    </p>
+    <div class="menu-card">
+      <h1>OPEN-BAY SHOOTING RANGE</h1>
+      <p style="color:#94a3b8; font-size:0.8rem;">
+        Front Side Mouse (or W) = Forward &bull; A/S/D = Move &bull; Shift = Sprint<br>
+        Left Click = Fire &bull; Right Click = ADS Red Dot &bull; R = Reload
+      </p>
+
+      <div class="sens-box">
+        <div class="sens-header">
+          <span>MOUSE SENSITIVITY</span>
+          <span id="sensVal" style="color:#e5a93b;">1.00x</span>
+        </div>
+        <input type="range" id="sensSlider" min="0.2" max="3.0" step="0.05" value="1.0" />
+      </div>
+
+      <button id="btnStart">ENTER RANGE</button>
+    </div>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -132,8 +188,8 @@
     scene.fog = new THREE.Fog(0x87b5de, 40, 180);
 
     const BASE_FOV = 70;
-    const ADS_FOV = 46;
-    const camera = new THREE.PerspectiveCamera(BASE_FOV, window.innerWidth / window.innerHeight, 0.05, 300);
+    const ADS_FOV = 52;
+    const camera = new THREE.PerspectiveCamera(BASE_FOV, window.innerWidth / window.innerHeight, 0.02, 300);
     scene.add(camera);
 
     const hemiLight = new THREE.HemisphereLight(0xe6f2ff, 0x4b583a, 0.85);
@@ -155,14 +211,12 @@
     const BAY_HALF_W = 12;
     const BAY_LEN = 65;
 
-    // Gravel / packed dirt bay floor
     const floorMat = new THREE.MeshStandardMaterial({ color: 0x6e6252, roughness: 0.95 });
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(BAY_HALF_W * 2 + 10, BAY_LEN + 20), floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, 0, -BAY_LEN / 2 + 8);
     scene.add(floor);
 
-    // Side and back dirt berms
     const bermMat = new THREE.MeshStandardMaterial({ color: 0x5c4934, roughness: 0.96 });
     const wallColliders = [];
 
@@ -173,20 +227,17 @@
       wallColliders.push(new THREE.Box3().setFromObject(mesh));
     }
 
-    // Left berm, right berm, backstop berm, and rear bay wall
     addBerm(-BAY_HALF_W - 2.5, 2.5, -BAY_LEN / 2 + 5, 5, 5, BAY_LEN + 14);
     addBerm(BAY_HALF_W + 2.5, 2.5, -BAY_LEN / 2 + 5, 5, 5, BAY_LEN + 14);
     addBerm(0, 3.2, -BAY_LEN - 2, BAY_HALF_W * 2 + 10, 6.4, 6);
     addBerm(0, 1.5, 11, BAY_HALF_W * 2 + 10, 3.0, 2);
 
-    // Shooting bench / low barricade near firing line
     const benchMat = new THREE.MeshStandardMaterial({ color: 0x3b2f24, roughness: 0.85 });
     const bench = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.95, 1.0), benchMat);
     bench.position.set(-2.2, 0.475, 0);
     scene.add(bench);
     wallColliders.push(new THREE.Box3().setFromObject(bench));
 
-    // Distance yardage markers along left berm
     const postMat = new THREE.MeshStandardMaterial({ color: 0x2d3748, roughness: 0.8 });
     [15, 30, 50].forEach(yd => {
       const z = -yd * 0.9144;
@@ -237,40 +288,125 @@
     createTarget(0.0, -46, 0.65);
 
     // =========================================================================
-    // 4. BARE-BONES 3D M4 CARBINE VIEWMODEL
+    // 4. 3D M4 CARBINE WITH SEE-THROUGH RED DOT OPTIC
     // =========================================================================
     const gunGroup = new THREE.Group();
-    const HIP_POS = new THREE.Vector3(0.22, -0.20, -0.42);
-    const ADS_POS = new THREE.Vector3(0.0, -0.135, -0.34);
+    const OPTIC_CENTER_Y = 0.072; // Optical axis height above receiver center
+    const HIP_POS = new THREE.Vector3(0.21, -0.19, -0.40);
+    // In ADS, align optic center (x=0, y=OPTIC_CENTER_Y) directly with camera axis (0, 0)
+    const ADS_POS = new THREE.Vector3(0.0, -OPTIC_CENTER_Y, -0.22);
     gunGroup.position.copy(HIP_POS);
     camera.add(gunGroup);
 
-    const blackMetal = new THREE.MeshStandardMaterial({ color: 0x1a1e24, roughness: 0.4, metalness: 0.75 });
+    const blackMetal = new THREE.MeshStandardMaterial({ color: 0x1a1e24, roughness: 0.38, metalness: 0.78 });
+    const housingWallMat = new THREE.MeshStandardMaterial({
+      color: 0x14171c,
+      roughness: 0.42,
+      metalness: 0.82,
+      side: THREE.DoubleSide
+    });
     const darkPolymer = new THREE.MeshStandardMaterial({ color: 0x262b33, roughness: 0.75, metalness: 0.15 });
 
     // Upper + lower receiver
     const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.046, 0.068, 0.21), blackMetal);
     gunGroup.add(receiver);
 
-    // Flat-top red dot optic
-    const opticBase = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.022, 0.065), blackMetal);
-    opticBase.position.set(0, 0.044, -0.01);
-    const opticTube = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.019, 0.075, 16), blackMetal);
-    opticTube.rotation.x = Math.PI / 2;
-    opticTube.position.set(0, 0.064, -0.01);
-    gunGroup.add(opticBase, opticTube);
+    // Picatinny rail & CompM4-style riser mount
+    const topRail = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.008, 0.19), blackMetal);
+    topRail.position.set(0, 0.038, -0.01);
+    const opticRiser = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.016, 0.052), blackMetal);
+    opticRiser.position.set(0, 0.048, -0.015);
+    gunGroup.add(topRail, opticRiser);
+
+    // Hollow See-Through Red Dot Tube (open-ended cylinder + beveled front/rear rings)
+    const opticRadius = 0.021;
+    const opticLen = 0.078;
+    const opticZ = -0.015;
+
+    const opticShell = new THREE.Mesh(
+      new THREE.CylinderGeometry(opticRadius, opticRadius, opticLen, 28, 1, true),
+      housingWallMat
+    );
+    opticShell.rotation.x = Math.PI / 2;
+    opticShell.position.set(0, OPTIC_CENTER_Y, opticZ);
+
+    const rearBezel = new THREE.Mesh(
+      new THREE.TorusGeometry(opticRadius, 0.0024, 10, 28),
+      blackMetal
+    );
+    rearBezel.position.set(0, OPTIC_CENTER_Y, opticZ + opticLen / 2);
+
+    const frontBezel = new THREE.Mesh(
+      new THREE.TorusGeometry(opticRadius, 0.0024, 10, 28),
+      blackMetal
+    );
+    frontBezel.position.set(0, OPTIC_CENTER_Y, opticZ - opticLen / 2);
+
+    // Side battery compartment & windage/elevation turrets on optic housing
+    const batteryPod = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.036, 14), blackMetal);
+    batteryPod.rotation.x = Math.PI / 2;
+    batteryPod.position.set(0.022, OPTIC_CENTER_Y + 0.009, opticZ - 0.005);
+
+    const topTurret = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.007, 12), blackMetal);
+    topTurret.position.set(0, OPTIC_CENTER_Y + opticRadius + 0.003, opticZ);
+
+    // Subtle anti-reflective coated lens glass inside the tube
+    const lensMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.11,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    const lensDisc = new THREE.Mesh(new THREE.CircleGeometry(opticRadius - 0.001, 24), lensMat);
+    lensDisc.position.set(0, OPTIC_CENTER_Y, opticZ);
+
+    // Collimated Glowing Red Dot Reticle Texture
+    function createRedDotTexture() {
+      const c = document.createElement('canvas');
+      c.width = 64;
+      c.height = 64;
+      const ctx = c.getContext('2d');
+      const g = ctx.createRadialGradient(32, 32, 1, 32, 32, 30);
+      g.addColorStop(0.0, 'rgba(255, 220, 220, 1.0)');
+      g.addColorStop(0.18, 'rgba(255, 30, 30, 1.0)');
+      g.addColorStop(0.45, 'rgba(255, 0, 0, 0.45)');
+      g.addColorStop(1.0, 'rgba(255, 0, 0, 0.0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(c);
+    }
+
+    const redDotMat = new THREE.SpriteMaterial({
+      map: createRedDotTexture(),
+      color: 0xff2a2a,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthTest: false
+    });
+    const redDotSprite = new THREE.Sprite(redDotMat);
+    redDotSprite.scale.set(0.0075, 0.0075, 1);
+    redDotSprite.position.set(0, OPTIC_CENTER_Y, opticZ - 0.01);
+
+    gunGroup.add(opticShell, rearBezel, frontBezel, batteryPod, topTurret, lensDisc, redDotSprite);
 
     // Quad-rail handguard
     const handguard = new THREE.Mesh(new THREE.BoxGeometry(0.050, 0.054, 0.22), blackMetal);
     handguard.position.set(0, 0.008, -0.215);
     gunGroup.add(handguard);
 
-    // A2 front sight post
-    const frontSight = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.042, 0.022), blackMetal);
-    frontSight.position.set(0, 0.048, -0.31);
-    gunGroup.add(frontSight);
+    // Lower 1/3 co-witness A2 front sight base & post (sits just below red dot center)
+    const fspBase = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.028, 0.028), blackMetal);
+    fspBase.position.set(0, 0.036, -0.31);
+    const fspPost = new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.014, 0.004), blackMetal);
+    fspPost.position.set(0, 0.054, -0.31);
+    const fspWingL = new THREE.Mesh(new THREE.BoxGeometry(0.0025, 0.016, 0.010), blackMetal);
+    fspWingL.position.set(-0.007, 0.055, -0.31);
+    const fspWingR = new THREE.Mesh(new THREE.BoxGeometry(0.0025, 0.016, 0.010), blackMetal);
+    fspWingR.position.set(0.007, 0.055, -0.31);
+    gunGroup.add(fspBase, fspPost, fspWingL, fspWingR);
 
-    // Exposed barrel & birdcage flash hider
+    // Barrel & birdcage flash hider
     const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.010, 0.16, 12), blackMetal);
     barrel.rotation.x = Math.PI / 2;
     barrel.position.set(0, 0.010, -0.40);
@@ -307,7 +443,7 @@
     muzzleAnchor.add(muzzleFlash);
 
     // =========================================================================
-    // 5. INPUTS (FRONT SIDE MOUSE BUTTON = WALK FORWARD, NO JUMPING)
+    // 5. SENSITIVITY SLIDER & INPUTS (FRONT SIDE MOUSE = FORWARD, NO JUMP)
     // =========================================================================
     const player = {
       pos: new THREE.Vector3(0, 1.7, 5),
@@ -319,8 +455,27 @@
       ads: false,
       hits: 0,
       recoilKick: 0,
-      recoilPitch: 0
+      recoilPitch: 0,
+      sensMult: 1.0
     };
+
+    const sensSlider = document.getElementById('sensSlider');
+    const sensVal = document.getElementById('sensVal');
+
+    try {
+      const savedSens = parseFloat(localStorage.getItem('m4_hitscan_sens'));
+      if (!isNaN(savedSens) && savedSens >= 0.2 && savedSens <= 3.0) {
+        player.sensMult = savedSens;
+        sensSlider.value = savedSens;
+        sensVal.innerText = `${savedSens.toFixed(2)}x`;
+      }
+    } catch (e) {}
+
+    sensSlider.addEventListener('input', e => {
+      player.sensMult = parseFloat(e.target.value);
+      sensVal.innerText = `${player.sensMult.toFixed(2)}x`;
+      try { localStorage.setItem('m4_hitscan_sens', player.sensMult.toString()); } catch (err) {}
+    });
 
     const keys = {
       forward: false,
@@ -332,8 +487,10 @@
 
     let pointerLocked = false;
     const overlay = document.getElementById('overlay');
+    const btnStart = document.getElementById('btnStart');
+    const crosshairEl = document.getElementById('crosshair');
 
-    overlay.addEventListener('click', () => {
+    btnStart.addEventListener('click', () => {
       canvas.requestPointerLock();
     });
 
@@ -343,13 +500,13 @@
       if (!pointerLocked) {
         keys.forward = keys.backward = keys.left = keys.right = keys.sprint = false;
         player.ads = false;
+        crosshairEl.style.opacity = '1';
       }
     });
 
-    // Prevent browser back/forward navigation on side mouse buttons
     window.addEventListener('mouseup', e => {
       if (e.button === 3 || e.button === 4) e.preventDefault();
-      if (e.button === 4) keys.forward = false; // Front side mouse button released
+      if (e.button === 4) keys.forward = false;
       if (e.button === 2) player.ads = false;
     });
 
@@ -357,7 +514,6 @@
       if (!pointerLocked) return;
       if (e.button === 3 || e.button === 4) e.preventDefault();
 
-      // Front side mouse button (XBUTTON2 -> button 4) bound to walk forward
       if (e.button === 4) {
         keys.forward = true;
       } else if (e.button === 0) {
@@ -371,7 +527,8 @@
 
     window.addEventListener('mousemove', e => {
       if (!pointerLocked) return;
-      const sens = player.ads ? 0.0012 : 0.0020;
+      const baseSens = player.ads ? 0.0013 : 0.0020;
+      const sens = baseSens * player.sensMult;
       player.yaw -= e.movementX * sens;
       player.pitch -= e.movementY * sens;
       player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch));
@@ -384,7 +541,6 @@
       if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
       if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.sprint = true;
       if (e.code === 'KeyR') reloadM4();
-      // Spacebar / Jump intentionally ignored
     });
 
     window.addEventListener('keyup', e => {
@@ -435,6 +591,15 @@
       }, 1100);
     }
 
+    function isViewmodelObject(obj) {
+      let cur = obj;
+      while (cur) {
+        if (cur === gunGroup) return true;
+        cur = cur.parent;
+      }
+      return false;
+    }
+
     function fireHitscan() {
       if (player.reloading) return;
       if (player.ammo <= 0) {
@@ -445,12 +610,10 @@
       player.ammo--;
       document.getElementById('hud-ammo').innerText = player.ammo;
 
-      // Recoil & muzzle flash
-      player.recoilKick = 0.045;
-      player.recoilPitch += 0.016;
+      player.recoilKick = 0.036;
+      player.recoilPitch += 0.015;
       muzzleTimer = 0.04;
 
-      // Instant center-screen hitscan raycast
       raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
       const hits = raycaster.intersectObjects(scene.children, true);
 
@@ -462,8 +625,7 @@
 
       for (let i = 0; i < hits.length; i++) {
         const obj = hits[i].object;
-        // Ignore viewmodel parts or tracer lines
-        if (obj.parent === gunGroup || obj.parent === muzzleAnchor || obj.type === 'Line') continue;
+        if (isViewmodelObject(obj) || obj.type === 'Line') continue;
         hitPoint = hits[i].point;
         if (obj.userData && obj.userData.target) {
           hitTarget = obj.userData.target;
@@ -491,7 +653,6 @@
       const dt = Math.min(0.05, (now - lastTime) * 0.001);
       lastTime = now;
 
-      // Player grounded movement (WASD + Front Side Mouse Button forward, no jumping)
       const moveForward = (keys.forward ? 1 : 0) - (keys.backward ? 1 : 0);
       const moveRight = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
 
@@ -508,7 +669,6 @@
         const nextPos = player.pos.clone().addScaledVector(wishDir, speed * dt);
         nextPos.y = 1.7;
 
-        // Simple player radius collision against berms and bench
         const playerBox = new THREE.Box3(
           new THREE.Vector3(nextPos.x - 0.35, 0.1, nextPos.z - 0.35),
           new THREE.Vector3(nextPos.x + 0.35, 1.8, nextPos.z + 0.35)
@@ -523,7 +683,6 @@
         if (!blocked) player.pos.copy(nextPos);
       }
 
-      // Smooth recoil recovery & camera orientation
       player.recoilPitch *= Math.pow(0.001, dt);
       player.recoilKick *= Math.pow(0.0005, dt);
 
@@ -531,17 +690,18 @@
       const euler = new THREE.Euler(player.pitch + player.recoilPitch, player.yaw, 0, 'YXZ');
       camera.quaternion.setFromEuler(euler);
 
-      // Smooth ADS FOV & viewmodel interpolation
       const targetFov = player.ads ? ADS_FOV : BASE_FOV;
-      camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 16);
+      camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 18);
       camera.updateProjectionMatrix();
+
+      // Fade out 2D hip-fire crosshair when looking through the 3D Red Dot optic
+      crosshairEl.style.opacity = player.ads ? '0' : '1';
 
       const targetGunPos = player.ads ? ADS_POS.clone() : HIP_POS.clone();
       targetGunPos.z += player.recoilKick;
       if (player.reloading) targetGunPos.y -= 0.12;
-      gunGroup.position.lerp(targetGunPos, Math.min(1, dt * 18));
+      gunGroup.position.lerp(targetGunPos, Math.min(1, dt * 20));
 
-      // Muzzle flash
       if (muzzleTimer > 0) {
         muzzleTimer -= dt;
         muzzleFlash.visible = true;
@@ -549,7 +709,6 @@
         muzzleFlash.visible = false;
       }
 
-      // Steel target swing & hit flash
       for (let i = 0; i < targets.length; i++) {
         const t = targets[i];
         const spring = -18.0 * t.swingAngle;
@@ -565,7 +724,6 @@
         }
       }
 
-      // Fade tracers & impact sparks
       for (let i = activeTracers.length - 1; i >= 0; i--) {
         const tr = activeTracers[i];
         tr.life -= dt;
