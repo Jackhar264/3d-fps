@@ -163,7 +163,7 @@
 
       <div class="sens-box">
         <div class="sens-header">
-          <span>MOUSE SENSITIVITY</span>
+          <span>MOUSE SENSITIVITY (RAW INPUT)</span>
           <span id="sensVal" style="color:#e5a93b;">1.00x</span>
         </div>
         <input type="range" id="sensSlider" min="0.2" max="3.0" step="0.05" value="1.0" />
@@ -189,6 +189,8 @@
 
     const BASE_FOV = 70;
     const ADS_FOV = 52;
+    const ADS_SENS_SCALE = Math.tan((ADS_FOV * Math.PI) / 360) / Math.tan((BASE_FOV * Math.PI) / 360);
+
     const camera = new THREE.PerspectiveCamera(BASE_FOV, window.innerWidth / window.innerHeight, 0.02, 300);
     scene.add(camera);
 
@@ -291,9 +293,8 @@
     // 4. 3D M4 CARBINE WITH SEE-THROUGH RED DOT OPTIC
     // =========================================================================
     const gunGroup = new THREE.Group();
-    const OPTIC_CENTER_Y = 0.072; // Optical axis height above receiver center
+    const OPTIC_CENTER_Y = 0.072;
     const HIP_POS = new THREE.Vector3(0.21, -0.19, -0.40);
-    // In ADS, align optic center (x=0, y=OPTIC_CENTER_Y) directly with camera axis (0, 0)
     const ADS_POS = new THREE.Vector3(0.0, -OPTIC_CENTER_Y, -0.22);
     gunGroup.position.copy(HIP_POS);
     camera.add(gunGroup);
@@ -307,18 +308,15 @@
     });
     const darkPolymer = new THREE.MeshStandardMaterial({ color: 0x262b33, roughness: 0.75, metalness: 0.15 });
 
-    // Upper + lower receiver
     const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.046, 0.068, 0.21), blackMetal);
     gunGroup.add(receiver);
 
-    // Picatinny rail & CompM4-style riser mount
     const topRail = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.008, 0.19), blackMetal);
     topRail.position.set(0, 0.038, -0.01);
     const opticRiser = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.016, 0.052), blackMetal);
     opticRiser.position.set(0, 0.048, -0.015);
     gunGroup.add(topRail, opticRiser);
 
-    // Hollow See-Through Red Dot Tube (open-ended cylinder + beveled front/rear rings)
     const opticRadius = 0.021;
     const opticLen = 0.078;
     const opticZ = -0.015;
@@ -342,7 +340,6 @@
     );
     frontBezel.position.set(0, OPTIC_CENTER_Y, opticZ - opticLen / 2);
 
-    // Side battery compartment & windage/elevation turrets on optic housing
     const batteryPod = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.036, 14), blackMetal);
     batteryPod.rotation.x = Math.PI / 2;
     batteryPod.position.set(0.022, OPTIC_CENTER_Y + 0.009, opticZ - 0.005);
@@ -350,7 +347,6 @@
     const topTurret = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.007, 12), blackMetal);
     topTurret.position.set(0, OPTIC_CENTER_Y + opticRadius + 0.003, opticZ);
 
-    // Subtle anti-reflective coated lens glass inside the tube
     const lensMat = new THREE.MeshBasicMaterial({
       color: 0x38bdf8,
       transparent: true,
@@ -361,7 +357,6 @@
     const lensDisc = new THREE.Mesh(new THREE.CircleGeometry(opticRadius - 0.001, 24), lensMat);
     lensDisc.position.set(0, OPTIC_CENTER_Y, opticZ);
 
-    // Collimated Glowing Red Dot Reticle Texture
     function createRedDotTexture() {
       const c = document.createElement('canvas');
       c.width = 64;
@@ -390,12 +385,10 @@
 
     gunGroup.add(opticShell, rearBezel, frontBezel, batteryPod, topTurret, lensDisc, redDotSprite);
 
-    // Quad-rail handguard
     const handguard = new THREE.Mesh(new THREE.BoxGeometry(0.050, 0.054, 0.22), blackMetal);
     handguard.position.set(0, 0.008, -0.215);
     gunGroup.add(handguard);
 
-    // Lower 1/3 co-witness A2 front sight base & post (sits just below red dot center)
     const fspBase = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.028, 0.028), blackMetal);
     fspBase.position.set(0, 0.036, -0.31);
     const fspPost = new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.014, 0.004), blackMetal);
@@ -406,7 +399,6 @@
     fspWingR.position.set(0.007, 0.055, -0.31);
     gunGroup.add(fspBase, fspPost, fspWingL, fspWingR);
 
-    // Barrel & birdcage flash hider
     const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.010, 0.16, 12), blackMetal);
     barrel.rotation.x = Math.PI / 2;
     barrel.position.set(0, 0.010, -0.40);
@@ -415,13 +407,11 @@
     flashHider.position.set(0, 0.010, -0.49);
     gunGroup.add(barrel, flashHider);
 
-    // STANAG 30-round magazine
     const mag = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.13, 0.062), darkPolymer);
     mag.position.set(0, -0.085, -0.055);
     mag.rotation.x = -0.18;
     gunGroup.add(mag);
 
-    // Pistol grip & collapsible M4 stock
     const grip = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.095, 0.042), darkPolymer);
     grip.position.set(0, -0.072, 0.065);
     grip.rotation.x = 0.32;
@@ -432,7 +422,6 @@
     stock.position.set(0, -0.015, 0.23);
     gunGroup.add(grip, bufferTube, stock);
 
-    // Muzzle point anchor + flash sprite
     const muzzleAnchor = new THREE.Object3D();
     muzzleAnchor.position.set(0, 0.010, -0.52);
     gunGroup.add(muzzleAnchor);
@@ -443,7 +432,7 @@
     muzzleAnchor.add(muzzleFlash);
 
     // =========================================================================
-    // 5. SENSITIVITY SLIDER & INPUTS (FRONT SIDE MOUSE = FORWARD, NO JUMP)
+    // 5. RAW POINTER LOCK, SENSITIVITY & INPUTS
     // =========================================================================
     const player = {
       pos: new THREE.Vector3(0, 1.7, 5),
@@ -486,16 +475,28 @@
     };
 
     let pointerLocked = false;
+    let mouseDeltaX = 0;
+    let mouseDeltaY = 0;
     const overlay = document.getElementById('overlay');
     const btnStart = document.getElementById('btnStart');
     const crosshairEl = document.getElementById('crosshair');
 
     btnStart.addEventListener('click', () => {
-      canvas.requestPointerLock();
+      // Request raw unadjusted mouse movement to eliminate OS pointer acceleration drift
+      try {
+        const promise = canvas.requestPointerLock({ unadjustedMovement: true });
+        if (promise && promise.catch) {
+          promise.catch(() => canvas.requestPointerLock());
+        }
+      } catch (e) {
+        canvas.requestPointerLock();
+      }
     });
 
     document.addEventListener('pointerlockchange', () => {
       pointerLocked = (document.pointerLockElement === canvas);
+      mouseDeltaX = 0;
+      mouseDeltaY = 0;
       overlay.style.display = pointerLocked ? 'none' : 'flex';
       if (!pointerLocked) {
         keys.forward = keys.backward = keys.left = keys.right = keys.sprint = false;
@@ -527,11 +528,10 @@
 
     window.addEventListener('mousemove', e => {
       if (!pointerLocked) return;
-      const baseSens = player.ads ? 0.0013 : 0.0020;
-      const sens = baseSens * player.sensMult;
-      player.yaw -= e.movementX * sens;
-      player.pitch -= e.movementY * sens;
-      player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch));
+      // Filter out anomalous browser pointer-lock jump spikes (> 300px in a single event)
+      if (Math.abs(e.movementX) > 300 || Math.abs(e.movementY) > 300) return;
+      mouseDeltaX += e.movementX;
+      mouseDeltaY += e.movementY;
     });
 
     window.addEventListener('keydown', e => {
@@ -653,6 +653,17 @@
       const dt = Math.min(0.05, (now - lastTime) * 0.001);
       lastTime = now;
 
+      // Apply buffered raw mouse deltas once per rendered frame for uniform turn speed
+      if (pointerLocked && (mouseDeltaX !== 0 || mouseDeltaY !== 0)) {
+        const baseSens = 0.0020 * (player.ads ? ADS_SENS_SCALE : 1.0);
+        const sens = baseSens * player.sensMult;
+        player.yaw -= mouseDeltaX * sens;
+        player.pitch -= mouseDeltaY * sens;
+        player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch));
+        mouseDeltaX = 0;
+        mouseDeltaY = 0;
+      }
+
       const moveForward = (keys.forward ? 1 : 0) - (keys.backward ? 1 : 0);
       const moveRight = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
 
@@ -694,7 +705,6 @@
       camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 18);
       camera.updateProjectionMatrix();
 
-      // Fade out 2D hip-fire crosshair when looking through the 3D Red Dot optic
       crosshairEl.style.opacity = player.ads ? '0' : '1';
 
       const targetGunPos = player.ads ? ADS_POS.clone() : HIP_POS.clone();
