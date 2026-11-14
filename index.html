@@ -163,7 +163,7 @@
 
       <div class="sens-box">
         <div class="sens-header">
-          <span>MOUSE SENSITIVITY (RAW INPUT)</span>
+          <span>MOUSE SENSITIVITY</span>
           <span id="sensVal" style="color:#e5a93b;">1.00x</span>
         </div>
         <input type="range" id="sensSlider" min="0.2" max="3.0" step="0.05" value="1.0" />
@@ -432,7 +432,7 @@
     muzzleAnchor.add(muzzleFlash);
 
     // =========================================================================
-    // 5. RAW POINTER LOCK, SENSITIVITY & INPUTS
+    // 5. POINTER LOCK, SENSITIVITY & INPUTS
     // =========================================================================
     const player = {
       pos: new THREE.Vector3(0, 1.7, 5),
@@ -482,15 +482,7 @@
     const crosshairEl = document.getElementById('crosshair');
 
     btnStart.addEventListener('click', () => {
-      // Request raw unadjusted mouse movement to eliminate OS pointer acceleration drift
-      try {
-        const promise = canvas.requestPointerLock({ unadjustedMovement: true });
-        if (promise && promise.catch) {
-          promise.catch(() => canvas.requestPointerLock());
-        }
-      } catch (e) {
-        canvas.requestPointerLock();
-      }
+      canvas.requestPointerLock();
     });
 
     document.addEventListener('pointerlockchange', () => {
@@ -528,8 +520,8 @@
 
     window.addEventListener('mousemove', e => {
       if (!pointerLocked) return;
-      // Filter out anomalous browser pointer-lock jump spikes (> 300px in a single event)
-      if (Math.abs(e.movementX) > 300 || Math.abs(e.movementY) > 300) return;
+      // Only guard against extreme OS cursor-wrap glitches (> 2500px), allowing fast high-DPI flicks
+      if (Math.abs(e.movementX) > 2500 || Math.abs(e.movementY) > 2500) return;
       mouseDeltaX += e.movementX;
       mouseDeltaY += e.movementY;
     });
@@ -653,7 +645,6 @@
       const dt = Math.min(0.05, (now - lastTime) * 0.001);
       lastTime = now;
 
-      // Apply buffered raw mouse deltas once per rendered frame for uniform turn speed
       if (pointerLocked && (mouseDeltaX !== 0 || mouseDeltaY !== 0)) {
         const baseSens = 0.0020 * (player.ads ? ADS_SENS_SCALE : 1.0);
         const sens = baseSens * player.sensMult;
