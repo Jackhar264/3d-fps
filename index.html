@@ -1,758 +1,1998 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>3D Hitscan Open-Bay Range — M4 Red Dot</title>
-  <style>
-    * { box-sizing: border-box; user-select: none; }
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: #0b0e11;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      color: #e2e8f0;
-    }
-    #gameCanvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-    #crosshair {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      width: 18px;
-      height: 18px;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-      transition: opacity 0.08s;
-    }
-    #crosshair::before, #crosshair::after {
-      content: "";
-      position: absolute;
-      background: rgba(255, 255, 255, 0.78);
-    }
-    #crosshair::before {
-      top: 8px; left: 0; width: 18px; height: 2px;
-    }
-    #crosshair::after {
-      top: 0; left: 8px; width: 2px; height: 18px;
-    }
-    #hud-tl {
-      position: fixed;
-      top: 12px;
-      left: 12px;
-      background: rgba(11, 14, 17, 0.78);
-      border: 1px solid #2c3542;
-      border-radius: 6px;
-      padding: 8px 12px;
-      font-size: 0.8rem;
-      line-height: 1.45;
-      pointer-events: none;
-    }
-    #hud-br {
-      position: fixed;
-      bottom: 14px;
-      right: 16px;
-      background: rgba(11, 14, 17, 0.82);
-      border: 1px solid #2c3542;
-      border-radius: 6px;
-      padding: 8px 14px;
-      font-size: 1.05rem;
-      font-weight: 700;
-      pointer-events: none;
-    }
-    #overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(9, 12, 16, 0.84);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      text-align: center;
-      padding: 20px;
-      z-index: 10;
-    }
-    .menu-card {
-      background: #151a20;
-      border: 1px solid #2c3542;
-      border-radius: 10px;
-      padding: 22px 26px;
-      max-width: 460px;
-      width: 100%;
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75);
-    }
-    .menu-card h1 {
-      margin: 0 0 8px;
-      font-size: 1.35rem;
-      color: #e5a93b;
-      letter-spacing: 0.04em;
-    }
-    .menu-card p {
-      margin: 4px 0;
-      font-size: 0.85rem;
-      color: #cbd5e1;
-    }
-    .sens-box {
-      margin: 16px 0;
-      padding: 12px 14px;
-      background: #0b0e11;
-      border: 1px solid #2c3542;
-      border-radius: 8px;
-      text-align: left;
-    }
-    .sens-header {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.82rem;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
-    #sensSlider {
-      width: 100%;
-      accent-color: #e5a93b;
-      cursor: pointer;
-    }
-    #btnStart {
-      width: 100%;
-      margin-top: 8px;
-      padding: 12px;
-      background: #c05621;
-      border: 1px solid #dd6b20;
-      border-radius: 6px;
-      color: #fff;
-      font-size: 0.95rem;
-      font-weight: 800;
-      letter-spacing: 0.05em;
-      cursor: pointer;
-    }
-    #btnStart:hover {
-      background: #dd6b20;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>G7 PRECISION BALLISTICS // 3D Long-Range FPS Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #121212;
+            --card-bg: #1e1e1e;
+            --accent: #ff9800;
+            --text: #e0e0e0;
+            --text-muted: #888;
+            --border: #333;
+        }
+        * {
+            user-select: none;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #090d16;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text);
+        }
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        #game-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            cursor: crosshair;
+        }
+        .hud-glass {
+            background: rgba(18, 18, 18, 0.86);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 152, 0, 0.25);
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.75);
+        }
+        /* Exact User G7 Calculator Styling inside Ballistics Computer Panel */
+        .g7-calc-panel {
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid #3a3a3a;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.85);
+        }
+        .g7-calc-panel h1 {
+            font-size: 1.05rem;
+            text-align: center;
+            margin: 0;
+            color: var(--accent);
+            letter-spacing: 0.06em;
+            font-weight: 700;
+        }
+        .hud-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .hud-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+        }
+        .hud-label {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+        }
+        .hud-val {
+            font-size: 1.55rem;
+            font-weight: 700;
+            color: #fff;
+            margin: 2px 0;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .hud-sub {
+            font-size: 0.8rem;
+            color: var(--accent);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .telemetry {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 10px;
+            margin-bottom: 12px;
+            font-size: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .telemetry span b {
+            color: var(--text);
+        }
+        .section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin: 12px 0 6px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 6px;
+        }
+        .g7-calc-panel label {
+            font-size: 0.7rem;
+            margin-bottom: 3px;
+            color: var(--text-muted);
+        }
+        .g7-calc-panel input {
+            background: #2a2a2a;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 7px 9px;
+            color: #fff;
+            font-size: 0.9rem;
+            font-weight: 500;
+            font-family: 'JetBrains Mono', monospace;
+            user-select: text !important;
+        }
+        .g7-calc-panel input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #121212;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #ff9800;
+        }
+        #scope-overlay {
+            pointer-events: none;
+            transition: opacity 0.14s ease-out;
+        }
+        .turret-btn:active {
+            transform: scale(0.93);
+        }
+    </style>
 </head>
 <body>
-  <canvas id="gameCanvas"></canvas>
-  <div id="crosshair"></div>
 
-  <div id="hud-tl">
-    <div><b>M4A1 CARBINE</b> (CompM4 Red Dot)</div>
-    <div>Hits: <b id="hud-hits" style="color:#38a169;">0</b></div>
-    <div style="color:#94a3b8; font-size:0.72rem; margin-top:2px;">
-      Forward: Front Side Mouse / W | Move: A S D<br>
-      Fire: LMB | ADS: RMB | Reload: R | Menu: ESC
+    <!-- Main 3D Viewport Canvas -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- First-Focal-Plane (FFP) MRAD Scope Reticle Overlay -->
+    <div id="scope-overlay" class="fixed inset-0 z-10 opacity-0 flex items-center justify-center">
+        <canvas id="reticle-canvas" class="w-full h-full"></canvas>
     </div>
-  </div>
 
-  <div id="hud-br">
-    AMMO: <span id="hud-ammo" style="color:#e5a93b;">30</span> / 30
-  </div>
-
-  <div id="overlay">
-    <div class="menu-card">
-      <h1>OPEN-BAY SHOOTING RANGE</h1>
-      <p style="color:#94a3b8; font-size:0.8rem;">
-        Front Side Mouse (or W) = Forward &bull; A/S/D = Move &bull; Shift = Sprint<br>
-        Left Click = Fire &bull; Right Click = ADS Red Dot &bull; R = Reload
-      </p>
-
-      <div class="sens-box">
-        <div class="sens-header">
-          <span>MOUSE SENSITIVITY</span>
-          <span id="sensVal" style="color:#e5a93b;">1.00x</span>
+    <!-- Unscoped Hipfire Crosshair -->
+    <div id="hip-crosshair" class="fixed inset-0 z-10 pointer-events-none flex items-center justify-center">
+        <div class="relative w-7 h-7 flex items-center justify-center opacity-80">
+            <div class="absolute w-2.5 h-[1.5px] bg-[#ff9800] -left-1"></div>
+            <div class="absolute w-2.5 h-[1.5px] bg-[#ff9800] -right-1"></div>
+            <div class="absolute h-2.5 w-[1.5px] bg-[#ff9800] -top-1"></div>
+            <div class="absolute h-2.5 w-[1.5px] bg-[#ff9800] -bottom-1"></div>
+            <div class="w-1 h-1 rounded-full bg-amber-300"></div>
         </div>
-        <input type="range" id="sensSlider" min="0.2" max="3.0" step="0.05" value="1.0" />
-      </div>
-
-      <button id="btnStart">ENTER RANGE</button>
     </div>
-  </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script>
-    // =========================================================================
-    // 1. SCENE, RENDERER & CAMERA SETUP
-    // =========================================================================
-    const canvas = document.getElementById('gameCanvas');
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(window.innerWidth, window.innerHeight);
-
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87b5de);
-    scene.fog = new THREE.Fog(0x87b5de, 40, 180);
-
-    const BASE_FOV = 70;
-    const ADS_FOV = 52;
-    const ADS_SENS_SCALE = Math.tan((ADS_FOV * Math.PI) / 360) / Math.tan((BASE_FOV * Math.PI) / 360);
-
-    const camera = new THREE.PerspectiveCamera(BASE_FOV, window.innerWidth / window.innerHeight, 0.02, 300);
-    scene.add(camera);
-
-    const hemiLight = new THREE.HemisphereLight(0xe6f2ff, 0x4b583a, 0.85);
-    scene.add(hemiLight);
-
-    const dirLight = new THREE.DirectionalLight(0xfff5e4, 1.15);
-    dirLight.position.set(25, 45, 20);
-    scene.add(dirLight);
-
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-
-    // =========================================================================
-    // 2. OUTDOOR OPEN-BAY SHOOTING RANGE GEOMETRY
-    // =========================================================================
-    const BAY_HALF_W = 12;
-    const BAY_LEN = 65;
-
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0x6e6252, roughness: 0.95 });
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(BAY_HALF_W * 2 + 10, BAY_LEN + 20), floorMat);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.set(0, 0, -BAY_LEN / 2 + 8);
-    scene.add(floor);
-
-    const bermMat = new THREE.MeshStandardMaterial({ color: 0x5c4934, roughness: 0.96 });
-    const wallColliders = [];
-
-    function addBerm(x, y, z, w, h, d) {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bermMat);
-      mesh.position.set(x, y, z);
-      scene.add(mesh);
-      wallColliders.push(new THREE.Box3().setFromObject(mesh));
-    }
-
-    addBerm(-BAY_HALF_W - 2.5, 2.5, -BAY_LEN / 2 + 5, 5, 5, BAY_LEN + 14);
-    addBerm(BAY_HALF_W + 2.5, 2.5, -BAY_LEN / 2 + 5, 5, 5, BAY_LEN + 14);
-    addBerm(0, 3.2, -BAY_LEN - 2, BAY_HALF_W * 2 + 10, 6.4, 6);
-    addBerm(0, 1.5, 11, BAY_HALF_W * 2 + 10, 3.0, 2);
-
-    const benchMat = new THREE.MeshStandardMaterial({ color: 0x3b2f24, roughness: 0.85 });
-    const bench = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.95, 1.0), benchMat);
-    bench.position.set(-2.2, 0.475, 0);
-    scene.add(bench);
-    wallColliders.push(new THREE.Box3().setFromObject(bench));
-
-    const postMat = new THREE.MeshStandardMaterial({ color: 0x2d3748, roughness: 0.8 });
-    [15, 30, 50].forEach(yd => {
-      const z = -yd * 0.9144;
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.4, 0.15), postMat);
-      post.position.set(-BAY_HALF_W + 0.4, 0.7, z);
-      scene.add(post);
-    });
-
-    // =========================================================================
-    // 3. HITSCAN STEEL TARGETS
-    // =========================================================================
-    const targets = [];
-    const targetMeshes = [];
-
-    function createTarget(x, z, size = 0.55) {
-      const group = new THREE.Group();
-      group.position.set(x, 0, z);
-
-      const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.35, 8), postMat);
-      stand.position.y = 0.675;
-      group.add(stand);
-
-      const pivot = new THREE.Group();
-      pivot.position.set(0, 1.35, 0);
-      group.add(pivot);
-
-      const plateMat = new THREE.MeshStandardMaterial({
-        color: 0xf1f5f9,
-        roughness: 0.35,
-        metalness: 0.4
-      });
-      const plate = new THREE.Mesh(new THREE.BoxGeometry(size, size * 1.45, 0.04), plateMat);
-      plate.position.set(0, -size * 0.65, 0);
-      pivot.add(plate);
-
-      scene.add(group);
-      const tObj = { pivot, plate, mat: plateMat, swingVel: 0, swingAngle: 0, flashTimer: 0 };
-      plate.userData.target = tObj;
-      targets.push(tObj);
-      targetMeshes.push(plate);
-    }
-
-    createTarget(-4.5, -14, 0.48);
-    createTarget(0.0, -14, 0.48);
-    createTarget(4.5, -14, 0.48);
-    createTarget(-3.0, -28, 0.55);
-    createTarget(3.0, -28, 0.55);
-    createTarget(0.0, -46, 0.65);
-
-    // =========================================================================
-    // 4. 3D M4 CARBINE WITH SEE-THROUGH RED DOT OPTIC
-    // =========================================================================
-    const gunGroup = new THREE.Group();
-    const OPTIC_CENTER_Y = 0.072;
-    const HIP_POS = new THREE.Vector3(0.21, -0.19, -0.40);
-    const ADS_POS = new THREE.Vector3(0.0, -OPTIC_CENTER_Y, -0.22);
-    gunGroup.position.copy(HIP_POS);
-    camera.add(gunGroup);
-
-    const blackMetal = new THREE.MeshStandardMaterial({ color: 0x1a1e24, roughness: 0.38, metalness: 0.78 });
-    const housingWallMat = new THREE.MeshStandardMaterial({
-      color: 0x14171c,
-      roughness: 0.42,
-      metalness: 0.82,
-      side: THREE.DoubleSide
-    });
-    const darkPolymer = new THREE.MeshStandardMaterial({ color: 0x262b33, roughness: 0.75, metalness: 0.15 });
-
-    const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.046, 0.068, 0.21), blackMetal);
-    gunGroup.add(receiver);
-
-    const topRail = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.008, 0.19), blackMetal);
-    topRail.position.set(0, 0.038, -0.01);
-    const opticRiser = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.016, 0.052), blackMetal);
-    opticRiser.position.set(0, 0.048, -0.015);
-    gunGroup.add(topRail, opticRiser);
-
-    const opticRadius = 0.021;
-    const opticLen = 0.078;
-    const opticZ = -0.015;
-
-    const opticShell = new THREE.Mesh(
-      new THREE.CylinderGeometry(opticRadius, opticRadius, opticLen, 28, 1, true),
-      housingWallMat
-    );
-    opticShell.rotation.x = Math.PI / 2;
-    opticShell.position.set(0, OPTIC_CENTER_Y, opticZ);
-
-    const rearBezel = new THREE.Mesh(
-      new THREE.TorusGeometry(opticRadius, 0.0024, 10, 28),
-      blackMetal
-    );
-    rearBezel.position.set(0, OPTIC_CENTER_Y, opticZ + opticLen / 2);
-
-    const frontBezel = new THREE.Mesh(
-      new THREE.TorusGeometry(opticRadius, 0.0024, 10, 28),
-      blackMetal
-    );
-    frontBezel.position.set(0, OPTIC_CENTER_Y, opticZ - opticLen / 2);
-
-    const batteryPod = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.036, 14), blackMetal);
-    batteryPod.rotation.x = Math.PI / 2;
-    batteryPod.position.set(0.022, OPTIC_CENTER_Y + 0.009, opticZ - 0.005);
-
-    const topTurret = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.007, 12), blackMetal);
-    topTurret.position.set(0, OPTIC_CENTER_Y + opticRadius + 0.003, opticZ);
-
-    const lensMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.11,
-      side: THREE.DoubleSide,
-      depthWrite: false
-    });
-    const lensDisc = new THREE.Mesh(new THREE.CircleGeometry(opticRadius - 0.001, 24), lensMat);
-    lensDisc.position.set(0, OPTIC_CENTER_Y, opticZ);
-
-    function createRedDotTexture() {
-      const c = document.createElement('canvas');
-      c.width = 64;
-      c.height = 64;
-      const ctx = c.getContext('2d');
-      const g = ctx.createRadialGradient(32, 32, 1, 32, 32, 30);
-      g.addColorStop(0.0, 'rgba(255, 220, 220, 1.0)');
-      g.addColorStop(0.18, 'rgba(255, 30, 30, 1.0)');
-      g.addColorStop(0.45, 'rgba(255, 0, 0, 0.45)');
-      g.addColorStop(1.0, 'rgba(255, 0, 0, 0.0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, 64, 64);
-      return new THREE.CanvasTexture(c);
-    }
-
-    const redDotMat = new THREE.SpriteMaterial({
-      map: createRedDotTexture(),
-      color: 0xff2a2a,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthTest: false
-    });
-    const redDotSprite = new THREE.Sprite(redDotMat);
-    redDotSprite.scale.set(0.0075, 0.0075, 1);
-    redDotSprite.position.set(0, OPTIC_CENTER_Y, opticZ - 0.01);
-
-    gunGroup.add(opticShell, rearBezel, frontBezel, batteryPod, topTurret, lensDisc, redDotSprite);
-
-    const handguard = new THREE.Mesh(new THREE.BoxGeometry(0.050, 0.054, 0.22), blackMetal);
-    handguard.position.set(0, 0.008, -0.215);
-    gunGroup.add(handguard);
-
-    const fspBase = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.028, 0.028), blackMetal);
-    fspBase.position.set(0, 0.036, -0.31);
-    const fspPost = new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.014, 0.004), blackMetal);
-    fspPost.position.set(0, 0.054, -0.31);
-    const fspWingL = new THREE.Mesh(new THREE.BoxGeometry(0.0025, 0.016, 0.010), blackMetal);
-    fspWingL.position.set(-0.007, 0.055, -0.31);
-    const fspWingR = new THREE.Mesh(new THREE.BoxGeometry(0.0025, 0.016, 0.010), blackMetal);
-    fspWingR.position.set(0.007, 0.055, -0.31);
-    gunGroup.add(fspBase, fspPost, fspWingL, fspWingR);
-
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.010, 0.16, 12), blackMetal);
-    barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.010, -0.40);
-    const flashHider = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.045, 12), blackMetal);
-    flashHider.rotation.x = Math.PI / 2;
-    flashHider.position.set(0, 0.010, -0.49);
-    gunGroup.add(barrel, flashHider);
-
-    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.13, 0.062), darkPolymer);
-    mag.position.set(0, -0.085, -0.055);
-    mag.rotation.x = -0.18;
-    gunGroup.add(mag);
-
-    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.030, 0.095, 0.042), darkPolymer);
-    grip.position.set(0, -0.072, 0.065);
-    grip.rotation.x = 0.32;
-    const bufferTube = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.18, 12), blackMetal);
-    bufferTube.rotation.x = Math.PI / 2;
-    bufferTube.position.set(0, 0.012, 0.19);
-    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.095, 0.13), darkPolymer);
-    stock.position.set(0, -0.015, 0.23);
-    gunGroup.add(grip, bufferTube, stock);
-
-    const muzzleAnchor = new THREE.Object3D();
-    muzzleAnchor.position.set(0, 0.010, -0.52);
-    gunGroup.add(muzzleAnchor);
-
-    const muzzleFlashMat = new THREE.MeshBasicMaterial({ color: 0xffcf56, transparent: true, opacity: 0.9 });
-    const muzzleFlash = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), muzzleFlashMat);
-    muzzleFlash.visible = false;
-    muzzleAnchor.add(muzzleFlash);
-
-    // =========================================================================
-    // 5. POINTER LOCK, SENSITIVITY & INPUTS
-    // =========================================================================
-    const player = {
-      pos: new THREE.Vector3(0, 1.7, 5),
-      yaw: 0,
-      pitch: 0,
-      ammo: 30,
-      maxAmmo: 30,
-      reloading: false,
-      ads: false,
-      hits: 0,
-      recoilKick: 0,
-      recoilPitch: 0,
-      sensMult: 1.0
-    };
-
-    const sensSlider = document.getElementById('sensSlider');
-    const sensVal = document.getElementById('sensVal');
-
-    try {
-      const savedSens = parseFloat(localStorage.getItem('m4_hitscan_sens'));
-      if (!isNaN(savedSens) && savedSens >= 0.2 && savedSens <= 3.0) {
-        player.sensMult = savedSens;
-        sensSlider.value = savedSens;
-        sensVal.innerText = `${savedSens.toFixed(2)}x`;
-      }
-    } catch (e) {}
-
-    sensSlider.addEventListener('input', e => {
-      player.sensMult = parseFloat(e.target.value);
-      sensVal.innerText = `${player.sensMult.toFixed(2)}x`;
-      try { localStorage.setItem('m4_hitscan_sens', player.sensMult.toString()); } catch (err) {}
-    });
-
-    const keys = {
-      forward: false,
-      backward: false,
-      left: false,
-      right: false,
-      sprint: false
-    };
-
-    let pointerLocked = false;
-    let accumulatedMovementX = 0;
-    let accumulatedMovementY = 0;
-    const overlay = document.getElementById('overlay');
-    const btnStart = document.getElementById('btnStart');
-    const crosshairEl = document.getElementById('crosshair');
-
-    btnStart.addEventListener('click', () => {
-      canvas.requestPointerLock();
-    });
-
-    document.addEventListener('pointerlockchange', () => {
-      pointerLocked = (document.pointerLockElement === canvas);
-      accumulatedMovementX = 0;
-      accumulatedMovementY = 0;
-      overlay.style.display = pointerLocked ? 'none' : 'flex';
-      if (!pointerLocked) {
-        keys.forward = keys.backward = keys.left = keys.right = keys.sprint = false;
-        player.ads = false;
-        crosshairEl.style.opacity = '1';
-      }
-    });
-
-    window.addEventListener('mouseup', e => {
-      if (e.button === 3 || e.button === 4) e.preventDefault();
-      if (e.button === 4) keys.forward = false;
-      if (e.button === 2) player.ads = false;
-    });
-
-    window.addEventListener('mousedown', e => {
-      if (!pointerLocked) return;
-      if (e.button === 3 || e.button === 4) e.preventDefault();
-
-      if (e.button === 4) {
-        keys.forward = true;
-      } else if (e.button === 0) {
-        fireHitscan();
-      } else if (e.button === 2) {
-        player.ads = true;
-      }
-    });
-
-    window.addEventListener('contextmenu', e => e.preventDefault());
-
-    // Accumulate movement deltas asynchronously to ensure zero dropped frames or lockups during fast swipes
-    window.addEventListener('mousemove', e => {
-      if (!pointerLocked) return;
-      accumulatedMovementX += e.movementX || e.mozMovementX || e.webkitMovementX || 0;
-      accumulatedMovementY += e.movementY || e.mozMovementY || e.webkitMovementY || 0;
-    }, { passive: true });
-
-    window.addEventListener('keydown', e => {
-      if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.forward = true;
-      if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.backward = true;
-      if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
-      if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
-      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.sprint = true;
-      if (e.code === 'KeyR') reloadM4();
-    });
-
-    window.addEventListener('keyup', e => {
-      if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.forward = false;
-      if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.backward = false;
-      if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
-      if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
-      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.sprint = false;
-    });
-
-    // =========================================================================
-    // 6. HITSCAN RAYCASTING, TRACERS & RELOAD
-    // =========================================================================
-    const raycaster = new THREE.Raycaster();
-    const activeTracers = [];
-    const activeSparks = [];
-    let muzzleTimer = 0;
-
-    function spawnTracer(startVec, endVec) {
-      const geo = new THREE.BufferGeometry().setFromPoints([startVec, endVec]);
-      const mat = new THREE.LineBasicMaterial({ color: 0xffe484, transparent: true, opacity: 0.75 });
-      const line = new THREE.Line(geo, mat);
-      scene.add(line);
-      activeTracers.push({ line, geo, mat, life: 0.09 });
-    }
-
-    function spawnImpactSpark(point, isTarget) {
-      const mat = new THREE.MeshBasicMaterial({
-        color: isTarget ? 0xffd166 : 0xb09e85,
-        transparent: true,
-        opacity: 0.95
-      });
-      const mesh = new THREE.Mesh(new THREE.SphereGeometry(isTarget ? 0.045 : 0.055, 6, 6), mat);
-      mesh.position.copy(point);
-      scene.add(mesh);
-      activeSparks.push({ mesh, mat, life: 0.18 });
-    }
-
-    function reloadM4() {
-      if (player.reloading || player.ammo === player.maxAmmo) return;
-      player.reloading = true;
-      player.ads = false;
-      document.getElementById('hud-ammo').innerText = 'RLD';
-      setTimeout(() => {
-        player.ammo = player.maxAmmo;
-        player.reloading = false;
-        document.getElementById('hud-ammo').innerText = player.ammo;
-      }, 1100);
-    }
-
-    function isViewmodelObject(obj) {
-      let cur = obj;
-      while (cur) {
-        if (cur === gunGroup) return true;
-        cur = cur.parent;
-      }
-      return false;
-    }
-
-    function fireHitscan() {
-      if (player.reloading) return;
-      if (player.ammo <= 0) {
-        reloadM4();
-        return;
-      }
-
-      player.ammo--;
-      document.getElementById('hud-ammo').innerText = player.ammo;
-
-      player.recoilKick = 0.036;
-      player.recoilPitch += 0.015;
-      muzzleTimer = 0.04;
-
-      raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-      const hits = raycaster.intersectObjects(scene.children, true);
-
-      const muzzleWorld = new THREE.Vector3();
-      muzzleAnchor.getWorldPosition(muzzleWorld);
-
-      let hitPoint = raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction, 120);
-      let hitTarget = null;
-
-      for (let i = 0; i < hits.length; i++) {
-        const obj = hits[i].object;
-        if (isViewmodelObject(obj) || obj.type === 'Line') continue;
-        hitPoint = hits[i].point;
-        if (obj.userData && obj.userData.target) {
-          hitTarget = obj.userData.target;
+    <!-- Top Tactical Bar: Rangefinder, Target Selector, Wind & Quick Actions -->
+    <div class="fixed top-3 left-1/2 -translate-x-1/2 z-20 flex flex-wrap items-center justify-center gap-2 pointer-events-auto max-w-[96vw]">
+        <div class="hud-glass px-3.5 py-2 rounded-lg flex items-center gap-4 text-xs mono">
+            <div class="flex items-center gap-2">
+                <span class="text-neutral-400">LRF:</span>
+                <span id="hud-lrf" class="text-[#ff9800] font-bold text-sm">650 yd</span>
+                <button id="btn-lrf-ping" class="px-2 py-0.5 rounded bg-[#ff9800]/20 hover:bg-[#ff9800]/40 text-[#ff9800] border border-[#ff9800]/40 text-[11px] font-semibold transition" title="Laser Rangefinder Ping & Sync to Calculator (Key: R)">
+                    PING [R]
+                </button>
+            </div>
+            <div class="h-4 w-[1px] bg-neutral-700"></div>
+            <div class="flex items-center gap-1.5">
+                <span class="text-neutral-400">QUICK TARGET:</span>
+                <div id="quick-range-btns" class="flex items-center gap-1">
+                    <button data-yd="100" class="q-yd px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[11px] transition">100</button>
+                    <button data-yd="300" class="q-yd px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[11px] transition">300</button>
+                    <button data-yd="500" class="q-yd px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[11px] transition">500</button>
+                    <button data-yd="650" class="q-yd px-1.5 py-0.5 rounded bg-[#ff9800] text-black font-bold text-[11px] transition">650</button>
+                    <button data-yd="800" class="q-yd px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[11px] transition">800</button>
+                    <button data-yd="1000" class="q-yd px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[11px] transition">1000</button>
+                    <button data-yd="1200" class="q-yd px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[11px] transition">1200</button>
+                    <button data-yd="1500" class="q-yd px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[11px] transition">1500</button>
+                </div>
+            </div>
+            <div class="h-4 w-[1px] bg-neutral-700 hidden md:block"></div>
+            <div class="hidden md:flex items-center gap-2">
+                <span class="text-neutral-400">WIND:</span>
+                <span id="hud-wind-summary" class="text-sky-400 font-semibold">10 mph @ 3:00</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Left Panel: User's Exact G7 Precision Ballistics Calculator -->
+    <div id="calc-container" class="fixed top-16 left-3 z-20 w-[330px] max-h-[calc(100vh-85px)] flex flex-col rounded-xl overflow-hidden g7-calc-panel transition-transform duration-200 pointer-events-auto">
+        <!-- Header Bar -->
+        <div class="flex items-center justify-between px-3.5 py-2.5 bg-[#181818] border-b border-[#333]">
+            <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-[#ff9800] animate-pulse"></span>
+                <h1>G7 PRECISION BALLISTICS</h1>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <button id="btn-sync-turrets" class="px-2 py-1 rounded bg-[#ff9800] hover:bg-amber-400 text-black font-bold text-[10px] mono tracking-tight transition" title="Automatically dial scope turrets to exact G7 calculated solution (Key: T)">
+                    DIAL TURRETS [T]
+                </button>
+                <button id="btn-toggle-calc" class="text-neutral-400 hover:text-white px-1.5 py-0.5 text-xs mono" title="Minimize / Expand Calculator (Key: B)">
+                    [B]
+                </button>
+            </div>
+        </div>
+
+        <!-- Calculator Body (Exact User Structure & IDs, without Bullet Preset Library) -->
+        <div id="calc-body" class="p-3.5 overflow-y-auto">
+            <!-- Primary Output HUD -->
+            <div class="hud-grid">
+                <div class="hud-card">
+                    <div class="hud-label">Elevation Come-Up</div>
+                    <div class="hud-val" id="disp-elev-mrad">0.00</div>
+                    <div class="hud-sub" id="disp-elev-moa">0.0 MOA</div>
+                </div>
+                <div class="hud-card">
+                    <div class="hud-label">Wind Hold / Dial</div>
+                    <div class="hud-val" id="disp-wind-mrad">0.00 -</div>
+                    <div class="hud-sub" id="disp-wind-moa">0.0 MOA</div>
+                </div>
+            </div>
+
+            <!-- Telemetry Bar -->
+            <div class="telemetry">
+                <span>TOF: <b id="disp-tof">0.00s</b></span>
+                <span>V: <b id="disp-vel">0 fps</b></span>
+                <span>Mach: <b id="disp-mach">0.00</b></span>
+                <span>Sg: <b id="disp-sg">0.00</b></span>
+            </div>
+
+            <!-- Target Distance -->
+            <div class="input-group">
+                <label>TARGET RANGE (YARDS)</label>
+                <input type="number" id="range" value="650" step="10">
+            </div>
+
+            <!-- Environmental & Wind -->
+            <div class="section-title">Atmosphere & Wind</div>
+            <div class="grid-2">
+                <div class="input-group">
+                    <label>Wind Speed (mph)</label>
+                    <input type="number" id="wind_speed" value="10" step="1">
+                </div>
+                <div class="input-group">
+                    <label>Wind Clock (1-12)</label>
+                    <input type="number" id="wind_clock" value="3" step="0.5">
+                </div>
+                <div class="input-group">
+                    <label>Temp (°F)</label>
+                    <input type="number" id="temp" value="59" step="1">
+                </div>
+                <div class="input-group">
+                    <label>Pressure (inHg)</label>
+                    <input type="number" id="press" value="29.92" step="0.05">
+                </div>
+            </div>
+
+            <!-- Rifle & Bullet Specs (Manual Inputs Only - Preset Dropdown Ignored) -->
+            <div class="section-title">Gun & Load Data</div>
+            <div class="grid-2">
+                <div class="input-group">
+                    <label>Muzzle Vel (fps)</label>
+                    <input type="number" id="mv" value="2820" step="5">
+                </div>
+                <div class="input-group">
+                    <label>G7 BC</label>
+                    <input type="number" id="bc" value="0.315" step="0.001">
+                </div>
+                <div class="input-group">
+                    <label>Sight Height (in)</label>
+                    <input type="number" id="sight_h" value="1.75" step="0.05">
+                </div>
+                <div class="input-group">
+                    <label>Zero Range (yd)</label>
+                    <input type="number" id="zero" value="100" step="25">
+                </div>
+                <div class="input-group">
+                    <label>Bullet Wt (gr)</label>
+                    <input type="number" id="bullet_wt" value="140" step="1">
+                </div>
+                <div class="input-group">
+                    <label>Bullet Dia (in)</label>
+                    <input type="number" id="bullet_dia" value="0.264" step="0.001">
+                </div>
+                <div class="input-group">
+                    <label>Bullet Len (in)</label>
+                    <input type="number" id="bullet_len" value="1.38" step="0.01">
+                </div>
+                <div class="input-group">
+                    <label>Twist Rate (1:X in)</label>
+                    <input type="number" id="twist" value="8.0" step="0.25">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel: Spotting Scope PiP & Shot Impact Telemetry Log -->
+    <div class="fixed top-16 right-3 z-20 w-[290px] flex flex-col gap-2.5 pointer-events-auto">
+        <!-- Spotting Scope Target Cam -->
+        <div class="hud-glass rounded-xl p-2.5 flex flex-col gap-2">
+            <div class="flex items-center justify-between text-xs mono">
+                <span class="text-[#ff9800] font-bold flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    SPOTTING CAM (<span id="spotter-yd-label">650</span> YD)
+                </span>
+                <button id="btn-clear-impacts" class="text-[10px] text-neutral-400 hover:text-white px-1.5 py-0.5 rounded bg-neutral-800">CLEAR</button>
+            </div>
+            <!-- 2D Target Face Bullseye Impact Plotter + Live Wind Flag -->
+            <div class="relative w-full h-44 bg-[#0b101b] rounded-lg border border-neutral-800 overflow-hidden flex items-center justify-center">
+                <canvas id="spotter-canvas" width="268" height="176" class="w-full h-full"></canvas>
+                <div id="flight-status-badge" class="hidden absolute top-2 left-2 px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/50 text-amber-300 text-[10px] mono font-bold">
+                    PROJECTILE IN FLIGHT...
+                </div>
+            </div>
+            <!-- Last Shot Telemetry Readout -->
+            <div class="grid grid-cols-2 gap-1.5 text-[11px] mono bg-[#141414] p-2 rounded border border-neutral-800">
+                <div>IMPACT: <span id="last-shot-result" class="text-emerald-400 font-bold">READY</span></div>
+                <div>OFFSET: <span id="last-shot-offset" class="text-white">--</span></div>
+                <div>VERT: <span id="last-shot-vert" class="text-neutral-300">--</span></div>
+                <div>HORIZ: <span id="last-shot-horiz" class="text-neutral-300">--</span></div>
+            </div>
+        </div>
+
+        <!-- Scope Turrets & Magnification Controls -->
+        <div class="hud-glass rounded-xl p-3 flex flex-col gap-2.5 mono text-xs">
+            <div class="flex items-center justify-between border-b border-neutral-800 pb-1.5">
+                <span class="text-[#ff9800] font-bold">OPTIC TURRETS (0.05 MRAD)</span>
+                <button id="btn-zero-turrets" class="text-[10px] text-neutral-400 hover:text-white bg-neutral-800 px-1.5 py-0.5 rounded">ZERO [0]</button>
+            </div>
+
+            <!-- Elevation & Windage Dial Controls -->
+            <div class="grid grid-cols-2 gap-2">
+                <div class="bg-[#161616] border border-neutral-800 rounded-lg p-2 flex flex-col items-center">
+                    <span class="text-[10px] text-neutral-400 uppercase">ELEVATION DIAL</span>
+                    <span id="turret-elev-val" class="text-lg font-bold text-white my-0.5">0.00 <span class="text-xs text-[#ff9800]">UP</span></span>
+                    <div class="flex items-center gap-1 mt-1">
+                        <button id="elev-dn" class="turret-btn px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-white text-[11px]">-0.1</button>
+                        <button id="elev-dn-fine" class="turret-btn px-1.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[10px]">-.01</button>
+                        <button id="elev-up-fine" class="turret-btn px-1.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[10px]">+.01</button>
+                        <button id="elev-up" class="turret-btn px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-white text-[11px]">+0.1</button>
+                    </div>
+                </div>
+
+                <div class="bg-[#161616] border border-neutral-800 rounded-lg p-2 flex flex-col items-center">
+                    <span class="text-[10px] text-neutral-400 uppercase">WINDAGE DIAL</span>
+                    <span id="turret-wind-val" class="text-lg font-bold text-white my-0.5">0.00 <span class="text-xs text-[#ff9800]">R</span></span>
+                    <div class="flex items-center gap-1 mt-1">
+                        <button id="wind-l" class="turret-btn px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-white text-[11px]">L .1</button>
+                        <button id="wind-l-fine" class="turret-btn px-1.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[10px]">L.01</button>
+                        <button id="wind-r-fine" class="turret-btn px-1.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[10px]">R.01</button>
+                        <button id="wind-r" class="turret-btn px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-white text-[11px]">R .1</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Magnification & Actions -->
+            <div class="flex items-center justify-between pt-1">
+                <div class="flex items-center gap-2">
+                    <span class="text-neutral-400">ZOOM:</span>
+                    <span id="scope-zoom-val" class="text-[#ff9800] font-bold">15x</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button id="btn-ads-toggle" class="px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-[11px] border border-neutral-700">
+                        SCOPE [RMB / Z]
+                    </button>
+                    <button id="btn-fire" class="px-3 py-1 rounded bg-[#ff9800] hover:bg-amber-400 text-black font-bold text-[11px]">
+                        FIRE [SPACE]
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Controls Legend Bar -->
+    <div class="fixed bottom-2.5 left-1/2 -translate-x-1/2 z-20 pointer-events-none hidden sm:flex">
+        <div class="hud-glass px-4 py-1.5 rounded-full text-[11px] mono text-neutral-300 flex items-center gap-4">
+            <span><b class="text-[#ff9800]">DRAG / LOCK MOUSE</b>: Aim Rifle</span>
+            <span><b class="text-[#ff9800]">RMB or Z</b>: FFP Scope</span>
+            <span><b class="text-[#ff9800]">SCROLL</b>: 5x-25x Zoom</span>
+            <span><b class="text-[#ff9800]">LMB / SPACE</b>: Fire Shot</span>
+            <span><b class="text-[#ff9800]">T</b>: Auto-Dial G7 Solution</span>
+            <span><b class="text-[#ff9800]">R</b>: LRF Range</span>
+            <span><b class="text-[#ff9800]">SHIFT</b>: Hold Breath</span>
+        </div>
+    </div>
+
+    <script>
+        /**************************************************************************
+         * 1. USER'S EXACT JBM G7 BALLISTIC CALCULATOR CODE
+         * (Preserving exact G7_TABLE, getCd(mach), RK4 zeroing, 3D Wind RK4,
+         *  Miller Stability Factor Sg, and Spin Drift equations)
+         **************************************************************************/
+        const G7_TABLE = [
+            [0.00, 0.1198], [0.05, 0.1197], [0.10, 0.1196], [0.15, 0.1194],
+            [0.20, 0.1193], [0.25, 0.1194], [0.30, 0.1194], [0.35, 0.1194],
+            [0.40, 0.1193], [0.45, 0.1193], [0.50, 0.1194], [0.55, 0.1193],
+            [0.60, 0.1194], [0.65, 0.1197], [0.70, 0.1202], [0.725, 0.1207],
+            [0.75, 0.1215], [0.775, 0.1226], [0.80, 0.1242], [0.825, 0.1266],
+            [0.85, 0.1306], [0.875, 0.1368], [0.90, 0.1464], [0.925, 0.1660],
+            [0.95, 0.2054], [0.975, 0.2993], [1.00, 0.3803], [1.025, 0.4015],
+            [1.05, 0.4043], [1.075, 0.4034], [1.10, 0.4014], [1.125, 0.3987],
+            [1.15, 0.3955], [1.20, 0.3884], [1.25, 0.3810], [1.30, 0.3732],
+            [1.35, 0.3657], [1.40, 0.3580], [1.50, 0.3440], [1.55, 0.3376],
+            [1.60, 0.3315], [1.65, 0.3260], [1.70, 0.3209], [1.75, 0.3160],
+            [1.80, 0.3117], [1.85, 0.3078], [1.90, 0.3042], [1.95, 0.3010],
+            [2.00, 0.2980], [2.05, 0.2951], [2.10, 0.2922], [2.15, 0.2892],
+            [2.20, 0.2864], [2.25, 0.2835], [2.30, 0.2807], [2.35, 0.2779],
+            [2.40, 0.2752], [2.45, 0.2725], [2.50, 0.2697], [2.55, 0.2670],
+            [2.60, 0.2643], [2.65, 0.2615], [2.70, 0.2588], [2.75, 0.2561],
+            [2.80, 0.2533], [2.85, 0.2506], [2.90, 0.2479], [2.95, 0.2451],
+            [3.00, 0.2424], [3.10, 0.2368], [3.20, 0.2313], [3.30, 0.2258],
+            [3.40, 0.2205], [3.50, 0.2154], [3.60, 0.2106], [3.70, 0.2060],
+            [3.80, 0.2017], [3.90, 0.1975], [4.00, 0.1935], [4.20, 0.1861],
+            [4.40, 0.1793], [4.60, 0.1730], [4.80, 0.1672], [5.00, 0.1618]
+        ];
+
+        function getCd(mach) {
+            if (mach <= G7_TABLE[0][0]) return G7_TABLE[0][1];
+            if (mach >= G7_TABLE[G7_TABLE.length - 1][0]) return G7_TABLE[G7_TABLE.length - 1][1];
+            let low = 0, high = G7_TABLE.length - 1;
+            while (low <= high) {
+                let mid = (low + high) >> 1;
+                if (G7_TABLE[mid][0] < mach) low = mid + 1;
+                else high = mid - 1;
+            }
+            let [m0, cd0] = G7_TABLE[low - 1];
+            let [m1, cd1] = G7_TABLE[low];
+            return cd0 + ((mach - m0) / (m1 - m0)) * (cd1 - cd0);
         }
-        break;
-      }
 
-      spawnTracer(muzzleWorld, hitPoint);
-      spawnImpactSpark(hitPoint, Boolean(hitTarget));
+        // Shared state from the calculator so the 3D FPS simulator uses the exact parameters
+        let latestCalcSolution = {
+            elevMrad: 0,
+            windMrad: 0,
+            thetaZero: 0,
+            sg: 1.5,
+            speedSound: 340,
+            dragConst: 0,
+            wx: 0,
+            wy: 0,
+            wz: 0,
+            v0: 859.536,
+            sightH_m: 0.04445,
+            targetYd: 650
+        };
 
-      if (hitTarget) {
-        hitTarget.swingVel -= 0.16;
-        hitTarget.flashTimer = 0.12;
-        player.hits++;
-        document.getElementById('hud-hits').innerText = player.hits;
-      }
-    }
+        function calculate() {
+            // Inputs
+            const targetYd = parseFloat(document.getElementById('range').value) || 100;
+            const mvFps = parseFloat(document.getElementById('mv').value) || 2820;
+            const bc = parseFloat(document.getElementById('bc').value) || 0.315;
+            const sightHIn = parseFloat(document.getElementById('sight_h').value) || 1.75;
+            const zeroYd = parseFloat(document.getElementById('zero').value) || 100;
+            const tempF = parseFloat(document.getElementById('temp').value) || 59;
+            const pressInHg = parseFloat(document.getElementById('press').value) || 29.92;
+            const windMph = parseFloat(document.getElementById('wind_speed').value) || 0;
+            const windClock = parseFloat(document.getElementById('wind_clock').value) || 3;
+            const wtGr = parseFloat(document.getElementById('bullet_wt').value) || 140;
+            const diaIn = parseFloat(document.getElementById('bullet_dia').value) || 0.264;
+            const lenIn = parseFloat(document.getElementById('bullet_len').value) || 1.38;
+            const twistIn = parseFloat(document.getElementById('twist').value) || 8.0;
 
-    // =========================================================================
-    // 7. MAIN SIMULATION & RENDER LOOP
-    // =========================================================================
-    let lastTime = performance.now();
+            // Constants & Conversions
+            const g = 9.80665;
+            const v0 = mvFps * 0.3048;
+            const sightH_m = sightHIn * 0.0254;
+            const zero_m = Math.max(10, zeroYd * 0.9144);
+            const target_m = Math.max(1, targetYd * 0.9144);
 
-    function animate(now) {
-      const dt = Math.min(0.05, (now - lastTime) * 0.001);
-      lastTime = now;
+            // Atmosphere
+            const tempK = (tempF - 32) * (5 / 9) + 273.15;
+            const speedSound = Math.sqrt(1.4 * 287.05 * tempK);
+            const density = (pressInHg * 3386.39) / (287.05 * tempK);
+            const refArea = (Math.PI / 4) * (0.0254 ** 2);
+            const dragConst = (density * refArea) / (2.0 * 0.45359237 * bc);
 
-      // Consume accumulated mouse deltas synchronously in the render loop for silky smooth rotation at any speed
-      if (pointerLocked && (accumulatedMovementX !== 0 || accumulatedMovementY !== 0)) {
-        const baseSens = 0.0022 * (player.ads ? ADS_SENS_SCALE : 1.0);
-        const sens = baseSens * player.sensMult;
-        player.yaw -= accumulatedMovementX * sens;
-        player.pitch -= accumulatedMovementY * sens;
-        player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch));
-        accumulatedMovementX = 0;
-        accumulatedMovementY = 0;
-      }
+            // 3D Apparent Wind Vector
+            const windRad = (windClock * 30.0) * (Math.PI / 180);
+            const wMps = windMph * 0.44704;
+            const wx = -wMps * Math.cos(windRad);
+            const wy = 0.0;
+            const wz = -wMps * Math.sin(windRad);
 
-      const moveForward = (keys.forward ? 1 : 0) - (keys.backward ? 1 : 0);
-      const moveRight = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+            function derivs(vx, vy, vz) {
+                const vrx = vx - wx, vry = vy - wy, vrz = vz - wz;
+                const vr = Math.sqrt(vrx * vrx + vry * vry + vrz * vrz);
+                const cd = getCd(vr / speedSound);
+                const ad = dragConst * (vr * vr) * cd;
+                return [-ad * (vrx / vr), -g - ad * (vry / vr), -ad * (vrz / vr)];
+            }
 
-      if (moveForward !== 0 || moveRight !== 0) {
-        const speed = (keys.sprint && !player.ads) ? 7.2 : 4.4;
-        const forwardVec = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
-        const rightVec = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+            // Zero bore angle via RK4
+            function zeroRK4(angle) {
+                let x = 0, y = -sightH_m;
+                let vx = v0 * Math.cos(angle), vy = v0 * Math.sin(angle);
+                const dt = 0.0005;
+                while (x < zero_m) {
+                    const zd = (curVx, curVy) => {
+                        const vc = Math.sqrt(curVx * curVx + curVy * curVy);
+                        const ad = dragConst * (vc * vc) * getCd(vc / speedSound);
+                        return [-ad * (curVx / vc), -g - ad * (curVy / vc)];
+                    };
+                    const [k1x, k1y] = zd(vx, vy);
+                    const [k2x, k2y] = zd(vx + 0.5 * dt * k1x, vy + 0.5 * dt * k1y);
+                    const [k3x, k3y] = zd(vx + 0.5 * dt * k2x, vy + 0.5 * dt * k2y);
+                    const [k4x, k4y] = zd(vx + dt * k3x, vy + dt * k3y);
+                    x += vx * dt; y += vy * dt;
+                    vx += (dt / 6) * (k1x + 2 * k2x + 2 * k3x + k4x);
+                    vy += (dt / 6) * (k1y + 2 * k2y + 2 * k3y + k4y);
+                }
+                return y;
+            }
 
-        const wishDir = new THREE.Vector3()
-          .addScaledVector(forwardVec, moveForward)
-          .addScaledVector(rightVec, moveRight)
-          .normalize();
+            let theta = Math.atan(sightH_m / zero_m);
+            for (let i = 0; i < 5; i++) {
+                let err = zeroRK4(theta);
+                if (Math.abs(err) < 0.00001) break;
+                theta -= err / zero_m;
+            }
 
-        const nextPos = player.pos.clone().addScaledVector(wishDir, speed * dt);
-        nextPos.y = 1.7;
+            // Main 3D RK4 Trajectory
+            const dt = 0.0005;
+            let t = 0, x = 0, y = -sightH_m, z = 0;
+            let vx = v0 * Math.cos(theta), vy = v0 * Math.sin(theta), vz = 0;
+            let px, py, pz, pt, pvx, pvy, pvz;
 
-        const playerBox = new THREE.Box3(
-          new THREE.Vector3(nextPos.x - 0.35, 0.1, nextPos.z - 0.35),
-          new THREE.Vector3(nextPos.x + 0.35, 1.8, nextPos.z + 0.35)
-        );
-        let blocked = false;
-        for (let i = 0; i < wallColliders.length; i++) {
-          if (playerBox.intersectsBox(wallColliders[i])) {
-            blocked = true;
-            break;
-          }
+            while (x < target_m && t < 8.0) {
+                px = x; py = y; pz = z; pt = t;
+                pvx = vx; pvy = vy; pvz = vz;
+                const [k1x, k1y, k1z] = derivs(vx, vy, vz);
+                const [k2x, k2y, k2z] = derivs(vx + 0.5 * dt * k1x, vy + 0.5 * dt * k1y, vz + 0.5 * dt * k1z);
+                const [k3x, k3y, k3z] = derivs(vx + 0.5 * dt * k2x, vy + 0.5 * dt * k2y, vz + 0.5 * dt * k2z);
+                const [k4x, k4y, k4z] = derivs(vx + dt * k3x, vy + dt * k3y, vz + dt * k3z);
+
+                x += vx * dt; y += vy * dt; z += vz * dt;
+                vx += (dt / 6) * (k1x + 2 * k2x + 2 * k3x + k4x);
+                vy += (dt / 6) * (k1y + 2 * k2y + 2 * k3y + k4y);
+                vz += (dt / 6) * (k1z + 2 * k2z + 2 * k3z + k4z);
+                t += dt;
+            }
+
+            // Linear step interpolation
+            const frac = (x !== px) ? (target_m - px) / (x - px) : 1.0;
+            const yFinal = py + frac * (y - py);
+            const zFinal = pz + frac * (z - pz);
+            const tFinal = pt + frac * (t - pt);
+            const vImpact = Math.sqrt((pvx + frac * (vx - pvx))**2 + (pvy + frac * (vy - pvy))**2 + (pvz + frac * (vz - pvz))**2);
+
+            // Stability Factor (Miller) & Spin Drift
+            const tRatio = twistIn / diaIn;
+            const lRatio = lenIn / diaIn;
+            const ft = ((tempF + 460) / 519.0) * (29.92 / pressInHg);
+            let sg = (30.0 * wtGr) / ((tRatio**2) * (diaIn**3) * lRatio * (1.0 + (lRatio**2)));
+            sg = (sg * Math.cbrt(mvFps / 2800.0)) / ft;
+
+            const spinIn = 1.25 * (sg + 1.2) * (tFinal**1.83);
+            const totalZIn = (zFinal / 0.0254) + spinIn;
+
+            // Angular Solutions
+            const elevMrad = Math.atan2(-yFinal, target_m) * 1000.0;
+            const windMrad = Math.atan2(-totalZIn * 0.0254, target_m) * 1000.0;
+            const windDir = windMrad > 0 ? "R" : "L";
+
+            // Render to UI
+            document.getElementById('disp-elev-mrad').innerText = elevMrad.toFixed(2);
+            document.getElementById('disp-elev-moa').innerText = (elevMrad * 3.43775).toFixed(1) + " MOA";
+            document.getElementById('disp-wind-mrad').innerText = Math.abs(windMrad).toFixed(2) + " " + windDir;
+            document.getElementById('disp-wind-moa').innerText = (Math.abs(windMrad) * 3.43775).toFixed(1) + " MOA";
+
+            document.getElementById('disp-tof').innerText = tFinal.toFixed(3) + "s";
+            document.getElementById('disp-vel').innerText = Math.round(vImpact / 0.3048) + " fps";
+            document.getElementById('disp-mach').innerText = (vImpact / speedSound).toFixed(2);
+            document.getElementById('disp-sg').innerText = sg.toFixed(2);
+
+            // Update Top HUD Wind Summary
+            const clockStr = windClock % 1 === 0 ? `${windClock}:00` : `${Math.floor(windClock)}:30`;
+            document.getElementById('hud-wind-summary').innerText = `${windMph} mph @ ${clockStr}`;
+
+            // Store solution for live 3D physics integration
+            latestCalcSolution = {
+                elevMrad,
+                windMrad,
+                thetaZero: theta,
+                sg,
+                speedSound,
+                dragConst,
+                wx,
+                wy,
+                wz,
+                v0,
+                sightH_m,
+                targetYd,
+                windMph,
+                windClock
+            };
         }
-        if (!blocked) player.pos.copy(nextPos);
-      }
 
-      player.recoilPitch *= Math.pow(0.001, dt);
-      player.recoilKick *= Math.pow(0.0005, dt);
+        /**************************************************************************
+         * 2. SYNTHESIZED WEB AUDIO SOUND ENGINE
+         * (Supersonic gunshot crack, mechanical bolt cycle, turret clicks,
+         *  and speed-of-sound delayed steel target ring)
+         **************************************************************************/
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+            }
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioCtx();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+            playTurretClick() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(1750, now);
+                osc.frequency.exponentialRampToValueAtTime(420, now + 0.018);
+                gain.gain.setValueAtTime(0.18, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.018);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.02);
+            }
+            playGunshot() {
+                this.init();
+                const now = this.ctx.currentTime;
+                // White noise burst + low-end muzzle blast
+                const bufferSize = this.ctx.sampleRate * 0.55;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.075));
+                }
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
 
-      camera.position.copy(player.pos);
-      const euler = new THREE.Euler(player.pitch + player.recoilPitch, player.yaw, 0, 'YXZ');
-      camera.quaternion.setFromEuler(euler);
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(3200, now);
+                filter.frequency.exponentialRampToValueAtTime(220, now + 0.45);
 
-      const targetFov = player.ads ? ADS_FOV : BASE_FOV;
-      camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 18);
-      camera.updateProjectionMatrix();
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.85, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.52);
 
-      crosshairEl.style.opacity = player.ads ? '0' : '1';
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start(now);
 
-      const targetGunPos = player.ads ? ADS_POS.clone() : HIP_POS.clone();
-      targetGunPos.z += player.recoilKick;
-      if (player.reloading) targetGunPos.y -= 0.12;
-      gunGroup.position.lerp(targetGunPos, Math.min(1, dt * 20));
-
-      if (muzzleTimer > 0) {
-        muzzleTimer -= dt;
-        muzzleFlash.visible = true;
-      } else {
-        muzzleFlash.visible = false;
-      }
-
-      for (let i = 0; i < targets.length; i++) {
-        const t = targets[i];
-        const spring = -18.0 * t.swingAngle;
-        t.swingVel = (t.swingVel + spring * dt) * Math.pow(0.08, dt);
-        t.swingAngle += t.swingVel * dt;
-        t.pivot.rotation.x = t.swingAngle;
-
-        if (t.flashTimer > 0) {
-          t.flashTimer -= dt;
-          t.mat.color.setHex(0x48bb78);
-        } else {
-          t.mat.color.setHex(0xf1f5f9);
+                // Supersonic crack punch
+                const punch = this.ctx.createOscillator();
+                const punchGain = this.ctx.createGain();
+                punch.type = 'sawtooth';
+                punch.frequency.setValueAtTime(160, now);
+                punch.frequency.exponentialRampToValueAtTime(38, now + 0.14);
+                punchGain.gain.setValueAtTime(0.65, now);
+                punchGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+                punch.connect(punchGain);
+                punchGain.connect(this.ctx.destination);
+                punch.start(now);
+                punch.stop(now + 0.16);
+            }
+            playBoltCycle() {
+                this.init();
+                const now = this.ctx.currentTime;
+                const strokes = [0.0, 0.14, 0.34, 0.48];
+                const freqs = [920, 680, 740, 1100];
+                strokes.forEach((offset, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(freqs[idx], now + offset);
+                    osc.frequency.exponentialRampToValueAtTime(280, now + offset + 0.055);
+                    gain.gain.setValueAtTime(0.12, now + offset);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.06);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + offset);
+                    osc.stop(now + offset + 0.065);
+                });
+            }
+            playSteelGong(delaySeconds = 0) {
+                this.init();
+                const start = this.ctx.currentTime + Math.max(0, delaySeconds);
+                const freqs = [825, 1240, 1985, 2610];
+                freqs.forEach((f, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
+                    osc.frequency.setValueAtTime(f, start);
+                    osc.frequency.exponentialRampToValueAtTime(f * 0.992, start + 1.4);
+                    const amp = 0.26 / (idx + 1);
+                    gain.gain.setValueAtTime(amp, start);
+                    gain.gain.exponentialRampToValueAtTime(0.0008, start + 1.45);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(start);
+                    osc.stop(start + 1.5);
+                });
+            }
+            playDirtThud(delaySeconds = 0) {
+                this.init();
+                const start = this.ctx.currentTime + Math.max(0, delaySeconds);
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(95, start);
+                osc.frequency.exponentialRampToValueAtTime(28, start + 0.16);
+                gain.gain.setValueAtTime(0.25, start);
+                gain.gain.exponentialRampToValueAtTime(0.001, start + 0.17);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(start);
+                osc.stop(start + 0.18);
+            }
         }
-      }
+        const sound = new SoundEngine();
 
-      for (let i = activeTracers.length - 1; i >= 0; i--) {
-        const tr = activeTracers[i];
-        tr.life -= dt;
-        tr.mat.opacity = Math.max(0, (tr.life / 0.09) * 0.75);
-        if (tr.life <= 0) {
-          tr.geo.dispose();
-          tr.mat.dispose();
-          scene.remove(tr.line);
-          activeTracers.splice(i, 1);
+        /**************************************************************************
+         * 3. THREE.JS 3D PROVING GROUNDS & HIGH-FIDELITY PRECISION RIFLE
+         **************************************************************************/
+        const canvas = document.getElementById('game-canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x131c2b);
+        scene.fog = new THREE.FogExp2(0x192334, 0.00042);
+
+        // Camera (Shooter eye position at (0, 1.5m, 0) looking downrange along -Z)
+        const SHOOTER_EYE_Y = 1.5;
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.05, 2500);
+        camera.position.set(0, SHOOTER_EYE_Y, 0);
+        camera.rotation.order = 'YXZ';
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x9ab0d4, 0.65);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xfff1d0, 1.25);
+        sunLight.position.set(180, 320, 140);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 600;
+        scene.add(sunLight);
+
+        // Proving Grounds Desert / Mountain Range Floor
+        const groundGeo = new THREE.PlaneGeometry(1200, 2400, 64, 128);
+        groundGeo.rotateX(-Math.PI / 2);
+        // Subtle rolling terrain on the flanks while keeping the central shooting lane flat for true sightline
+        const posAttr = groundGeo.attributes.position;
+        for (let i = 0; i < posAttr.count; i++) {
+            const vx = posAttr.getX(i);
+            const vz = posAttr.getZ(i);
+            if (Math.abs(vx) > 32) {
+                const distFromLane = Math.abs(vx) - 32;
+                const hill = Math.sin(vz * 0.008) * Math.cos(vx * 0.015) * (distFromLane * 0.16);
+                posAttr.setY(i, Math.max(0, hill));
+            }
         }
-      }
+        groundGeo.computeVertexNormals();
+        const groundMat = new THREE.MeshStandardMaterial({
+            color: 0x3b352c,
+            roughness: 0.94,
+            metalness: 0.04
+        });
+        const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+        groundMesh.position.z = -900;
+        groundMesh.receiveShadow = true;
+        scene.add(groundMesh);
 
-      for (let i = activeSparks.length - 1; i >= 0; i--) {
-        const sp = activeSparks[i];
-        sp.life -= dt;
-        sp.mat.opacity = Math.max(0, sp.life / 0.18);
-        if (sp.life <= 0) {
-          sp.mat.dispose();
-          scene.remove(sp.mesh);
-          activeSparks.splice(i, 1);
+        // Distant Mountain Backdrop
+        const mountainMat = new THREE.MeshStandardMaterial({ color: 0x1e2736, roughness: 0.95 });
+        for (let i = 0; i < 18; i++) {
+            const h = 90 + Math.random() * 140;
+            const r = 120 + Math.random() * 160;
+            const mGeo = new THREE.ConeGeometry(r, h, 7);
+            const mMesh = new THREE.Mesh(mGeo, mountainMat);
+            const angle = (i / 18) * Math.PI - Math.PI;
+            mMesh.position.set(Math.cos(angle) * 1450 + (Math.random() - 0.5) * 200, h / 2 - 5, -1650 + Math.sin(angle) * 350);
+            scene.add(mMesh);
         }
-      }
 
-      renderer.render(scene, camera);
-      requestAnimationFrame(animate);
-    }
+        /**************************************************************************
+         * 4. REACTIVE STEEL TARGETS & WIND FLAGS AT 100 - 1500 YARDS
+         **************************************************************************/
+        const TARGET_YARDS = [100, 300, 500, 650, 800, 1000, 1200, 1500];
+        const targetObjects = []; // { yd, z_m, centerPos, radius_m, gongMesh, standGroup, swingVel, swingAngle }
+        const windFlags = [];
 
-    requestAnimationFrame(animate);
-  </script>
+        function createNumberSignTexture(text) {
+            const c = document.createElement('canvas');
+            c.width = 256;
+            c.height = 128;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#18181b';
+            ctx.fillRect(0, 0, 256, 128);
+            ctx.strokeStyle = '#ff9800';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(4, 4, 248, 120);
+            ctx.fillStyle = '#ff9800';
+            ctx.font = 'bold 58px "JetBrains Mono", monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 128, 66);
+            return new THREE.CanvasTexture(c);
+        }
+
+        const frameMat = new THREE.MeshStandardMaterial({ color: 0x27272a, metalness: 0.7, roughness: 0.4 });
+        const steelFaceMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.45, roughness: 0.4 });
+        const bullseyeMat = new THREE.MeshStandardMaterial({ color: 0xff9800, roughness: 0.5 });
+        const bermMat = new THREE.MeshStandardMaterial({ color: 0x4b4237, roughness: 0.95 });
+
+        TARGET_YARDS.forEach((yd) => {
+            const dist_m = yd * 0.9144;
+            const zPos = -dist_m;
+            // All targets aligned along the central shooting corridor (x = 0) and elevated to SHOOTER_EYE_Y (1.5m)
+            // so the shooter has a clear sightline and exact 0-elevation reference at `y = 0` relative to eye height!
+            // Slight stagger in X only if needed, or keep x = 0 so every target can be engaged dead-on without panning far!
+            // Let's place every target at x = 0, y = SHOOTER_EYE_Y (with a tall A-frame above it) AND a secondary offset KYL target!
+            // Wait: if all targets are at x = 0, closer targets might block further targets!
+            // Let's arrange them along a gentle fan of 1.5 MRAD spacing so NO target ever blocks another, while still being right in the field of view!
+            const index = TARGET_YARDS.indexOf(yd);
+            // Fan angle in radians: very subtle (-0.008 to +0.008 rad) so all 8 targets are immediately visible inside the scope!
+            const azimuthRad = (index - 3.5) * 0.0032;
+            const xPos = Math.sin(azimuthRad) * dist_m;
+            const zExact = -Math.cos(azimuthRad) * dist_m;
+
+            const group = new THREE.Group();
+            group.position.set(xPos, 0, zExact);
+            group.rotation.y = -azimuthRad;
+
+            // Dirt Berm behind target
+            const bermW = Math.max(4.5, dist_m * 0.012);
+            const bermH = 2.6;
+            const bermGeo = new THREE.ConeGeometry(bermW, bermH, 6);
+            const berm = new THREE.Mesh(bermGeo, bermMat);
+            berm.position.set(0, bermH / 2 - 0.2, -2.5);
+            group.add(berm);
+
+            // Steel A-Frame Overhead Stand
+            const standWidth = 1.6;
+            const standHeight = 2.4;
+            const postGeo = new THREE.CylinderGeometry(0.04, 0.04, standHeight, 8);
+            const leftPost = new THREE.Mesh(postGeo, frameMat);
+            leftPost.position.set(-standWidth / 2, standHeight / 2, 0);
+            const rightPost = new THREE.Mesh(postGeo, frameMat);
+            rightPost.position.set(standWidth / 2, standHeight / 2, 0);
+            const crossbarGeo = new THREE.CylinderGeometry(0.04, 0.04, standWidth + 0.2, 8);
+            crossbarGeo.rotateZ(Math.PI / 2);
+            const crossbar = new THREE.Mesh(crossbarGeo, frameMat);
+            crossbar.position.set(0, standHeight, 0);
+            group.add(leftPost, rightPost, crossbar);
+
+            // Circular Steel Gong Target centered at y = SHOOTER_EYE_Y (1.5m)
+            // Target diameter scales realistically: 12" (0.3048m) up to 300yd, 18" (0.457m) at 500-800yd, 24" (0.6096m) at 1000-1500yd
+            const gongRadius = yd <= 300 ? 0.18 : (yd <= 800 ? 0.25 : 0.34);
+            const pivotGroup = new THREE.Group();
+            pivotGroup.position.set(0, standHeight, 0);
+
+            // Hanging straps
+            const strapLen = standHeight - SHOOTER_EYE_Y;
+            const strapGeo = new THREE.BoxGeometry(0.025, strapLen, 0.015);
+            const strapL = new THREE.Mesh(strapGeo, frameMat);
+            strapL.position.set(-gongRadius * 0.5, -strapLen / 2, 0);
+            const strapR = new THREE.Mesh(strapGeo, frameMat);
+            strapR.position.set(gongRadius * 0.5, -strapLen / 2, 0);
+            pivotGroup.add(strapL, strapR);
+
+            // Steel Gong Disc
+            const gongGeo = new THREE.CylinderGeometry(gongRadius, gongRadius, 0.025, 32);
+            gongGeo.rotateX(Math.PI / 2);
+            const gongMesh = new THREE.Mesh(gongGeo, steelFaceMat.clone());
+            gongMesh.position.set(0, -strapLen, 0);
+            pivotGroup.add(gongMesh);
+
+            // Orange Bullseye Center Dot (4 inches radius)
+            const bullGeo = new THREE.CylinderGeometry(gongRadius * 0.32, gongRadius * 0.32, 0.03, 24);
+            bullGeo.rotateX(Math.PI / 2);
+            const bullMesh = new THREE.Mesh(bullGeo, bullseyeMat);
+            bullMesh.position.set(0, -strapLen, 0.005);
+            pivotGroup.add(bullMesh);
+
+            group.add(pivotGroup);
+
+            // Yardage Sign Board above crossbar
+            const signW = Math.max(0.9, dist_m * 0.0022);
+            const signH = signW * 0.5;
+            const signGeo = new THREE.PlaneGeometry(signW, signH);
+            const signMat = new THREE.MeshBasicMaterial({ map: createNumberSignTexture(`${yd} YD`), side: THREE.DoubleSide });
+            const signMesh = new THREE.Mesh(signGeo, signMat);
+            signMesh.position.set(0, standHeight + signH * 0.7, 0);
+            group.add(signMesh);
+
+            // Animated Wind Flag Pole next to each target
+            const flagPoleGeo = new THREE.CylinderGeometry(0.02, 0.02, 2.8, 6);
+            const flagPole = new THREE.Mesh(flagPoleGeo, frameMat);
+            flagPole.position.set(standWidth / 2 + 0.9, 1.4, 0);
+            group.add(flagPole);
+
+            const streamerGeo = new THREE.ConeGeometry(0.16, 0.95, 8, 4, true);
+            streamerGeo.translate(0, -0.475, 0);
+            streamerGeo.rotateZ(Math.PI / 2);
+            const streamerMat = new THREE.MeshBasicMaterial({ color: 0xff5722, side: THREE.DoubleSide });
+            const streamerMesh = new THREE.Mesh(streamerGeo, streamerMat);
+            streamerMesh.position.set(standWidth / 2 + 0.9, 2.7, 0);
+            group.add(streamerMesh);
+            windFlags.push(streamerMesh);
+
+            scene.add(group);
+
+            const worldCenter = new THREE.Vector3(xPos, SHOOTER_EYE_Y, zExact);
+            targetObjects.push({
+                yd,
+                dist_m,
+                azimuthRad,
+                worldCenter,
+                radius_m: gongRadius,
+                pivotGroup,
+                gongMesh,
+                swingAngle: 0,
+                swingVel: 0
+            });
+        });
+
+        /**************************************************************************
+         * 5. HIGH-FIDELITY FIRST-PERSON PRECISION CHASSIS RIFLE & FFP OPTIC
+         **************************************************************************/
+        const weaponRig = new THREE.Group();
+        camera.add(weaponRig);
+        scene.add(camera);
+
+        const rifleGroup = new THREE.Group();
+        weaponRig.add(rifleGroup);
+
+        // Materials for CNC Chassis, Carbon Fiber Barrel, Anodized Scope & Fluted Bolt
+        const matChassis = new THREE.MeshStandardMaterial({ color: 0xc29b61, metalness: 0.65, roughness: 0.32 }); // Flat Dark Earth (FDE) Anodized
+        const matDarkMetal = new THREE.MeshStandardMaterial({ color: 0x181b20, metalness: 0.82, roughness: 0.25 });
+        const matCarbonBarrel = new THREE.MeshStandardMaterial({ color: 0x22262c, metalness: 0.5, roughness: 0.35 });
+        const matStainless = new THREE.MeshStandardMaterial({ color: 0xd4d8dd, metalness: 0.9, roughness: 0.18 });
+        const matAccentOrange = new THREE.MeshStandardMaterial({ color: 0xff9800, metalness: 0.6, roughness: 0.3 });
+        const matLens = new THREE.MeshStandardMaterial({ color: 0x0ea5e9, metalness: 0.95, roughness: 0.05, transparent: true, opacity: 0.75 });
+
+        // 1. CNC Main Receiver & Forend Chassis with M-LOK Cutouts
+        const receiverGeo = new THREE.BoxGeometry(0.048, 0.055, 0.28);
+        const receiverMesh = new THREE.Mesh(receiverGeo, matDarkMetal);
+        receiverMesh.position.set(0, -0.01, -0.18);
+        rifleGroup.add(receiverMesh);
+
+        const forendGeo = new THREE.BoxGeometry(0.044, 0.042, 0.38);
+        const forendMesh = new THREE.Mesh(forendGeo, matChassis);
+        forendMesh.position.set(0, -0.022, -0.48);
+        rifleGroup.add(forendMesh);
+
+        // M-LOK Side Vent Slots on Forend
+        for (let i = 0; i < 5; i++) {
+            const slotGeo = new THREE.BoxGeometry(0.048, 0.012, 0.042);
+            const slot = new THREE.Mesh(slotGeo, matDarkMetal);
+            slot.position.set(0, -0.02, -0.35 - i * 0.062);
+            rifleGroup.add(slot);
+        }
+
+        // 2. Heavy Contour Free-Floating Carbon-Wrapped Match Barrel + Multi-Baffle Muzzle Brake
+        const barrelGeo = new THREE.CylinderGeometry(0.0135, 0.0165, 0.72, 24);
+        barrelGeo.rotateX(Math.PI / 2);
+        const barrelMesh = new THREE.Mesh(barrelGeo, matCarbonBarrel);
+        barrelMesh.position.set(0, 0.008, -0.62);
+        rifleGroup.add(barrelMesh);
+
+        // Stainless Chamber Collar
+        const collarGeo = new THREE.CylinderGeometry(0.0175, 0.0175, 0.07, 24);
+        collarGeo.rotateX(Math.PI / 2);
+        const collarMesh = new THREE.Mesh(collarGeo, matStainless);
+        collarMesh.position.set(0, 0.008, -0.29);
+        rifleGroup.add(collarMesh);
+
+        // 3-Port Tactical Muzzle Brake
+        const brakeGroup = new THREE.Group();
+        brakeGroup.position.set(0, 0.008, -0.99);
+        const brakeBodyGeo = new THREE.BoxGeometry(0.034, 0.028, 0.075);
+        const brakeBody = new THREE.Mesh(brakeBodyGeo, matDarkMetal);
+        brakeGroup.add(brakeBody);
+        for (let i = -1; i <= 1; i++) {
+            const portGeo = new THREE.BoxGeometry(0.038, 0.014, 0.012);
+            const port = new THREE.Mesh(portGeo, matStainless);
+            port.position.set(0, 0, i * 0.02);
+            brakeGroup.add(port);
+        }
+        rifleGroup.add(brakeGroup);
+
+        // 3. Animated Fluted Bolt Body & Tactical Bolt Handle
+        const boltGroup = new THREE.Group();
+        boltGroup.position.set(0, 0.008, -0.16);
+        const boltCylinderGeo = new THREE.CylinderGeometry(0.011, 0.011, 0.17, 16);
+        boltCylinderGeo.rotateX(Math.PI / 2);
+        const boltCylinder = new THREE.Mesh(boltCylinderGeo, matStainless);
+        boltGroup.add(boltCylinder);
+
+        // Bolt Handle Stem & Oversized Knurled Knob
+        const handlePivot = new THREE.Group();
+        handlePivot.position.set(0, 0, 0.05);
+        const stemGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.045, 8);
+        stemGeo.rotateZ(Math.PI / 2);
+        const stemMesh = new THREE.Mesh(stemGeo, matDarkMetal);
+        stemMesh.position.set(0.022, -0.005, 0);
+        handlePivot.add(stemMesh);
+
+        const knobGeo = new THREE.CylinderGeometry(0.009, 0.012, 0.024, 12);
+        knobGeo.rotateZ(Math.PI / 2);
+        const knobMesh = new THREE.Mesh(knobGeo, matAccentOrange);
+        knobMesh.position.set(0.045, -0.008, 0);
+        handlePivot.add(knobMesh);
+        boltGroup.add(handlePivot);
+        rifleGroup.add(boltGroup);
+
+        // 4. Detachable AICS Box Magazine, Ergo Pistol Grip & Adjustable Precision Stock
+        const magGeo = new THREE.BoxGeometry(0.032, 0.095, 0.085);
+        const magMesh = new THREE.Mesh(magGeo, matDarkMetal);
+        magMesh.position.set(0, -0.075, -0.21);
+        magMesh.rotation.x = 0.08;
+        rifleGroup.add(magMesh);
+
+        const gripGeo = new THREE.BoxGeometry(0.034, 0.09, 0.045);
+        const gripMesh = new THREE.Mesh(gripGeo, matDarkMetal);
+        gripMesh.position.set(0, -0.075, -0.07);
+        gripMesh.rotation.x = -0.22;
+        rifleGroup.add(gripMesh);
+
+        const stockSpineGeo = new THREE.BoxGeometry(0.038, 0.04, 0.22);
+        const stockSpine = new THREE.Mesh(stockSpineGeo, matChassis);
+        stockSpine.position.set(0, -0.02, 0.05);
+        rifleGroup.add(stockSpine);
+
+        const cheekRiserGeo = new THREE.BoxGeometry(0.042, 0.028, 0.13);
+        const cheekRiser = new THREE.Mesh(cheekRiserGeo, matDarkMetal);
+        cheekRiser.position.set(0, 0.012, 0.05);
+        rifleGroup.add(cheekRiser);
+
+        // 5. Folding Front Bipod Legs
+        const bipodGroup = new THREE.Group();
+        bipodGroup.position.set(0, -0.045, -0.63);
+        [-1, 1].forEach((side) => {
+            const legGeo = new THREE.CylinderGeometry(0.006, 0.005, 0.16, 8);
+            const leg = new THREE.Mesh(legGeo, matDarkMetal);
+            leg.position.set(side * 0.042, -0.06, 0);
+            leg.rotation.z = side * 0.32;
+            bipodGroup.add(leg);
+        });
+        rifleGroup.add(bipodGroup);
+
+        // 6. Picatinny 20-MOA Scope Rail + Unimount + High-Magnification FFP Optic
+        const railGeo = new THREE.BoxGeometry(0.026, 0.012, 0.22);
+        const railMesh = new THREE.Mesh(railGeo, matDarkMetal);
+        railMesh.position.set(0, 0.024, -0.19);
+        rifleGroup.add(railMesh);
+
+        const scopeGroup = new THREE.Group();
+        scopeGroup.position.set(0, 0.062, -0.20); // Sight height above bore
+        rifleGroup.add(scopeGroup);
+
+        // Scope Rings
+        [-0.06, 0.06].forEach((zOff) => {
+            const ringGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.022, 20);
+            ringGeo.rotateX(Math.PI / 2);
+            const ring = new THREE.Mesh(ringGeo, matChassis);
+            ring.position.set(0, -0.005, zOff);
+            scopeGroup.add(ring);
+        });
+
+        // Main 34mm Scope Tube
+        const mainTubeGeo = new THREE.CylinderGeometry(0.017, 0.017, 0.24, 24);
+        mainTubeGeo.rotateX(Math.PI / 2);
+        const mainTube = new THREE.Mesh(mainTubeGeo, matDarkMetal);
+        scopeGroup.add(mainTube);
+
+        // 56mm Objective Bell & Sunshade
+        const objBellGeo = new THREE.CylinderGeometry(0.031, 0.017, 0.09, 28);
+        objBellGeo.rotateX(Math.PI / 2);
+        const objBell = new THREE.Mesh(objBellGeo, matDarkMetal);
+        objBell.position.set(0, 0, -0.155);
+        scopeGroup.add(objBell);
+
+        const sunshadeGeo = new THREE.CylinderGeometry(0.031, 0.031, 0.08, 28);
+        sunshadeGeo.rotateX(Math.PI / 2);
+        const sunshade = new THREE.Mesh(sunshadeGeo, matDarkMetal);
+        sunshade.position.set(0, 0, -0.235);
+        scopeGroup.add(sunshade);
+
+        // Ocular Eyepiece & Throw Lever
+        const ocularGeo = new THREE.CylinderGeometry(0.021, 0.024, 0.085, 24);
+        ocularGeo.rotateX(Math.PI / 2);
+        const ocularMesh = new THREE.Mesh(ocularGeo, matDarkMetal);
+        ocularMesh.position.set(0, 0, 0.145);
+        scopeGroup.add(ocularMesh);
+
+        const ocularLensGeo = new THREE.CircleGeometry(0.021, 24);
+        const ocularLens = new THREE.Mesh(ocularLensGeo, matLens);
+        ocularLens.position.set(0, 0, 0.188);
+        scopeGroup.add(ocularLens);
+
+        // Tactile Elevation & Windage Turrets on the 3D Scope
+        const elevTurretMesh = new THREE.Group();
+        elevTurretMesh.position.set(0, 0.026, 0);
+        const turretCapGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.024, 20);
+        const elevCap = new THREE.Mesh(turretCapGeo, matDarkMetal);
+        const elevRing = new THREE.Mesh(new THREE.CylinderGeometry(0.0165, 0.0165, 0.004, 20), matAccentOrange);
+        elevRing.position.y = 0.008;
+        elevTurretMesh.add(elevCap, elevRing);
+        scopeGroup.add(elevTurretMesh);
+
+        const windTurretMesh = new THREE.Group();
+        windTurretMesh.position.set(0.026, 0, 0);
+        windTurretMesh.rotation.z = -Math.PI / 2;
+        const windCap = new THREE.Mesh(turretCapGeo, matDarkMetal);
+        const windRing = new THREE.Mesh(new THREE.CylinderGeometry(0.0165, 0.0165, 0.004, 20), matAccentOrange);
+        windRing.position.y = 0.008;
+        windTurretMesh.add(windCap, windRing);
+        scopeGroup.add(windTurretMesh);
+
+        // Position rifle in hipfire vs ADS
+        const HIP_POS = new THREE.Vector3(0.16, -0.13, -0.12);
+        const ADS_POS = new THREE.Vector3(0.0, -0.062, 0.02);
+        weaponRig.position.copy(HIP_POS);
+
+        /**************************************************************************
+         * 6. FIRST FOCAL PLANE (FFP) PRECISION MRAD CHRISTMAS-TREE RETICLE
+         **************************************************************************/
+        const reticleCanvas = document.getElementById('reticle-canvas');
+        const rCtx = reticleCanvas.getContext('2d');
+        let isScoped = false;
+        let scopeMagnification = 15; // 5x to 25x
+        let turretElevMrad = 0.0;    // Positive = Come-Up
+        let turretWindMrad = 0.0;    // Positive = Right, Negative = Left
+
+        function drawFFPReticle() {
+            const w = reticleCanvas.width = window.innerWidth;
+            const h = reticleCanvas.height = window.innerHeight;
+            rCtx.clearRect(0, 0, w, h);
+            if (!isScoped) return;
+
+            const cx = w / 2;
+            const cy = h / 2;
+            const scopeRadius = Math.min(w, h) * 0.44;
+
+            // Outer Scope Vignette & Tube Shadow
+            rCtx.save();
+            rCtx.fillStyle = 'rgba(4, 6, 11, 0.94)';
+            rCtx.beginPath();
+            rCtx.rect(0, 0, w, h);
+            rCtx.arc(cx, cy, scopeRadius, 0, Math.PI * 2, true);
+            rCtx.fill();
+
+            // Inner Ocular Bezel Ring
+            rCtx.strokeStyle = '#1e293b';
+            rCtx.lineWidth = 10;
+            rCtx.beginPath();
+            rCtx.arc(cx, cy, scopeRadius, 0, Math.PI * 2);
+            rCtx.stroke();
+
+            // Clip to inside scope lens
+            rCtx.beginPath();
+            rCtx.arc(cx, cy, scopeRadius - 4, 0, Math.PI * 2);
+            rCtx.clip();
+
+            // Exact angular pixel scale matching Three.js camera vertical FOV!
+            // At current FOV, 1 radian = (h / 2) / tan(fovRad / 2) pixels, so 1 MRAD = 0.001 rad
+            const fovRad = THREE.MathUtils.degToRad(camera.fov);
+            const pxPerMrad = ((h / 2) / Math.tan(fovRad / 2)) * 0.001;
+
+            // Reticle Styling
+            rCtx.strokeStyle = 'rgba(226, 232, 240, 0.9)';
+            rCtx.fillStyle = 'rgba(255, 152, 0, 0.92)';
+            rCtx.lineWidth = Math.max(1, Math.min(2.2, scopeMagnification / 12));
+            rCtx.font = `${Math.max(9, Math.min(14, pxPerMrad * 0.36))}px "JetBrains Mono", monospace`;
+            rCtx.textAlign = 'center';
+            rCtx.textBaseline = 'middle';
+
+            // Center Floating Precision Dot (0.05 MRAD)
+            rCtx.beginPath();
+            rCtx.arc(cx, cy, Math.max(1.6, pxPerMrad * 0.04), 0, Math.PI * 2);
+            rCtx.fill();
+
+            const gap = pxPerMrad * 0.2;
+            // Main Stadia Lines
+            rCtx.beginPath();
+            // Left stadia
+            rCtx.moveTo(cx - scopeRadius, cy);
+            rCtx.lineTo(cx - gap, cy);
+            // Right stadia
+            rCtx.moveTo(cx + gap, cy);
+            rCtx.lineTo(cx + scopeRadius, cy);
+            // Top stadia
+            rCtx.moveTo(cx, cy - scopeRadius);
+            rCtx.lineTo(cx, cy - gap);
+            // Bottom stadia
+            rCtx.moveTo(cx, cy + gap);
+            rCtx.lineTo(cx, cy + scopeRadius);
+            rCtx.stroke();
+
+            // FFP MRAD Subtensions (0.2 MRAD & 0.5 MRAD & 1.0 MRAD ticks)
+            const maxMrad = Math.min(20, Math.floor(scopeRadius / pxPerMrad));
+            const step = scopeMagnification >= 10 ? 0.2 : 0.5;
+
+            for (let m = step; m <= maxMrad; m = Math.round((m + step) * 10) / 10) {
+                const offset = m * pxPerMrad;
+                const isWhole = Math.abs(m - Math.round(m)) < 0.01;
+                const isHalf = Math.abs((m * 2) - Math.round(m * 2)) < 0.01 && !isWhole;
+                const tickLen = isWhole ? pxPerMrad * 0.28 : (isHalf ? pxPerMrad * 0.18 : pxPerMrad * 0.09);
+
+                rCtx.beginPath();
+                // Horizontal Left & Right ticks
+                rCtx.moveTo(cx - offset, cy - tickLen);
+                rCtx.lineTo(cx - offset, cy + tickLen);
+                rCtx.moveTo(cx + offset, cy - tickLen);
+                rCtx.lineTo(cx + offset, cy + tickLen);
+                // Vertical Down (Holdover) & Up ticks
+                rCtx.moveTo(cx - tickLen, cy + offset);
+                rCtx.lineTo(cx + tickLen, cy + offset);
+                if (m <= 5) {
+                    rCtx.moveTo(cx - tickLen * 0.7, cy - offset);
+                    rCtx.lineTo(cx + tickLen * 0.7, cy - offset);
+                }
+                rCtx.stroke();
+
+                // Numbered MRAD labels & Christmas Tree Windage Hold Dots
+                if (isWhole && m >= 1) {
+                    const mInt = Math.round(m);
+                    if (mInt % 2 === 0 || scopeMagnification >= 12) {
+                        rCtx.fillStyle = 'rgba(226, 232, 240, 0.85)';
+                        rCtx.fillText(mInt.toString(), cx - pxPerMrad * 0.58, cy + offset);
+                        if (mInt <= 10 && mInt % 2 === 0) {
+                            rCtx.fillText(mInt.toString(), cx - offset, cy + pxPerMrad * 0.48);
+                            rCtx.fillText(mInt.toString(), cx + offset, cy + pxPerMrad * 0.48);
+                        }
+                    }
+                    // Christmas Tree Wind Hold Dots below main horizontal stadia
+                    if (mInt <= 12) {
+                        rCtx.fillStyle = 'rgba(226, 232, 240, 0.65)';
+                        for (let wHold = 1; wHold <= Math.min(6, mInt + 1); wHold++) {
+                            const wx = wHold * pxPerMrad;
+                            rCtx.beginPath();
+                            rCtx.arc(cx - wx, cy + offset, 1.5, 0, Math.PI * 2);
+                            rCtx.arc(cx + wx, cy + offset, 1.5, 0, Math.PI * 2);
+                            rCtx.fill();
+                        }
+                    }
+                }
+            }
+
+            // Inside-Scope Digital Heads-Up Overlay (Turret Dial + G7 Solution Comparison)
+            rCtx.fillStyle = '#ff9800';
+            rCtx.font = 'bold 12px "JetBrains Mono", monospace';
+            rCtx.textAlign = 'left';
+            const windLabel = turretWindMrad >= 0 ? `${turretWindMrad.toFixed(2)} R` : `${Math.abs(turretWindMrad).toFixed(2)} L`;
+            rCtx.fillText(`DIAL: ${turretElevMrad.toFixed(2)} UP | ${windLabel}`, cx - scopeRadius * 0.68, cy - scopeRadius * 0.72);
+            rCtx.fillStyle = '#38bdf8';
+            const calcWindDir = latestCalcSolution.windMrad >= 0 ? 'R' : 'L';
+            rCtx.fillText(`G7 (${latestCalcSolution.targetYd}yd): ${latestCalcSolution.elevMrad.toFixed(2)} UP | ${Math.abs(latestCalcSolution.windMrad).toFixed(2)} ${calcWindDir}`, cx - scopeRadius * 0.68, cy - scopeRadius * 0.65);
+
+            rCtx.restore();
+        }
+
+        /**************************************************************************
+         * 7. LIVE 3D BULLET FLIGHT PHYSICS (USING EXACT USER RK4 & SPIN DRIFT)
+         **************************************************************************/
+        const activeProjectiles = [];
+        const shotImpacts = []; // { targetYd, dx_m, dy_m, hitSteel, totalOffsetIn }
+
+        function fireShot() {
+            if (boltAnimTime > 0) return; // Wait for bolt cycle
+            calculate(); // Ensure latest calculator inputs are synced
+
+            sound.playGunshot();
+            recoilPitch += 0.0085;
+            recoilBack += 0.045;
+            boltAnimTime = 0.75;
+            setTimeout(() => sound.playBoltCycle(), 260);
+
+            document.getElementById('flight-status-badge').classList.remove('hidden');
+
+            // Sight line direction from camera
+            const sightDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
+            // Local right and up vectors perpendicular to sight line
+            const sightRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
+            const sightUp = new THREE.Vector3().crossVectors(sightRight, sightDir).normalize();
+
+            // Total vertical launch angle relative to sight line:
+            // Zero bore angle (thetaZero) + Turret Elevation Come-Up (turretElevMrad / 1000)
+            const totalElevRad = latestCalcSolution.thetaZero + (turretElevMrad * 0.001);
+            // Total horizontal launch angle relative to sight line:
+            // Turret Windage (turretWindMrad / 1000). Note: Right dial aims bore right (+sightRight).
+            // In user's calculator: z is lateral drift (+z is right drift, -z is left drift),
+            // and windMrad = atan2(-totalZIn * 0.0254, target_m) * 1000.
+            // So if wind blows from 3 o'clock (right to left), wz = -wMps, bullet drifts left (-z),
+            // windMrad is POSITIVE ("R"), meaning shooter dials RIGHT (+sightRight) to compensate!
+            const totalWindRad = turretWindMrad * 0.001;
+
+            const v0 = latestCalcSolution.v0;
+            // Initial velocity components in shooter's Sight Coordinate Frame:
+            // x = downrange along sightDir, y = vertical along sightUp, z = lateral along sightRight
+            const vx0 = v0 * Math.cos(totalElevRad) * Math.cos(totalWindRad);
+            const vy0 = v0 * Math.sin(totalElevRad);
+            const vz0 = v0 * Math.cos(totalElevRad) * Math.sin(totalWindRad);
+
+            // Tracer visual mesh
+            const tracerGeo = new THREE.SphereGeometry(0.065, 8, 8);
+            const tracerMat = new THREE.MeshBasicMaterial({ color: 0xffb74d });
+            const tracerMesh = new THREE.Mesh(tracerGeo, tracerMat);
+            scene.add(tracerMesh);
+
+            // Vapor Trail Line
+            const trailPoints = [];
+            const trailGeo = new THREE.BufferGeometry();
+            const trailMat = new THREE.LineBasicMaterial({ color: 0xffe082, transparent: true, opacity: 0.55 });
+            const trailLine = new THREE.Line(trailGeo, trailMat);
+            scene.add(trailLine);
+
+            const originEye = camera.position.clone();
+            const startWorldPos = originEye.clone().addScaledVector(sightUp, -latestCalcSolution.sightH_m);
+            tracerMesh.position.copy(startWorldPos);
+            trailPoints.push(startWorldPos.clone());
+
+            activeProjectiles.push({
+                originEye,
+                sightDir,
+                sightUp,
+                sightRight,
+                // State variables matching user's exact RK4 integrator:
+                t: 0,
+                x: 0,
+                y: -latestCalcSolution.sightH_m,
+                z: 0,
+                vx: vx0,
+                vy: vy0,
+                vz: vz0,
+                // Snapshot of environmental constants at firing
+                dragConst: latestCalcSolution.dragConst,
+                speedSound: latestCalcSolution.speedSound,
+                wx: latestCalcSolution.wx,
+                wy: latestCalcSolution.wy,
+                wz: latestCalcSolution.wz,
+                sg: latestCalcSolution.sg,
+                tracerMesh,
+                trailLine,
+                trailPoints,
+                completed: false
+            });
+        }
+
+        function stepProjectiles(frameDt) {
+            const g = 9.80665;
+            const rkDt = 0.0005; // User's exact RK4 time step
+
+            for (let i = activeProjectiles.length - 1; i >= 0; i--) {
+                const p = activeProjectiles[i];
+                if (p.completed) continue;
+
+                // Advance real-time flight (slightly accelerated 1.25x at extreme ranges for snappy feedback while preserving exact dt=0.0005s math)
+                const steps = Math.min(200, Math.max(1, Math.round((frameDt * 1.15) / rkDt)));
+
+                for (let s = 0; s < steps; s++) {
+                    const prevX = p.x, prevY = p.y, prevZ = p.z, prevT = p.t;
+
+                    // User's exact derivs(vx, vy, vz)
+                    const derivs = (vx, vy, vz) => {
+                        const vrx = vx - p.wx, vry = vy - p.wy, vrz = vz - p.wz;
+                        const vr = Math.sqrt(vrx * vrx + vry * vry + vrz * vrz);
+                        const cd = getCd(vr / p.speedSound);
+                        const ad = p.dragConst * (vr * vr) * cd;
+                        return [-ad * (vrx / vr), -g - ad * (vry / vr), -ad * (vrz / vr)];
+                    };
+
+                    const [k1x, k1y, k1z] = derivs(p.vx, p.vy, p.vz);
+                    const [k2x, k2y, k2z] = derivs(p.vx + 0.5 * rkDt * k1x, p.vy + 0.5 * rkDt * k1y, p.vz + 0.5 * rkDt * k1z);
+                    const [k3x, k3y, k3z] = derivs(p.vx + 0.5 * rkDt * k2x, p.vy + 0.5 * rkDt * k2y, p.vz + 0.5 * rkDt * k2z);
+                    const [k4x, k4y, k4z] = derivs(p.vx + rkDt * k3x, p.vy + rkDt * k3y, p.vz + rkDt * k3z);
+
+                    p.x += p.vx * rkDt;
+                    p.y += p.vy * rkDt;
+                    p.z += p.vz * rkDt;
+                    p.vx += (rkDt / 6) * (k1x + 2 * k2x + 2 * k3x + k4x);
+                    p.vy += (rkDt / 6) * (k1y + 2 * k2y + 2 * k3y + k4y);
+                    p.vz += (rkDt / 6) * (k1z + 2 * k2z + 2 * k3z + k4z);
+                    p.t += rkDt;
+
+                    // User's exact Spin Drift formula: spinIn = 1.25 * (sg + 1.2) * (t ** 1.83)
+                    const spinMeters = 1.25 * (p.sg + 1.2) * (p.t ** 1.83) * 0.0254;
+                    const prevSpinMeters = 1.25 * (p.sg + 1.2) * (prevT ** 1.83) * 0.0254;
+
+                    // Check if projectile crossed any target plane
+                    for (const tgt of targetObjects) {
+                        if (prevX < tgt.dist_m && p.x >= tgt.dist_m) {
+                            const frac = (tgt.dist_m - prevX) / (p.x - prevX);
+                            const yCross = prevY + frac * (p.y - prevY);
+                            const zCross = (prevZ + prevSpinMeters) + frac * ((p.z + spinMeters) - (prevZ + prevSpinMeters));
+                            const tCross = prevT + frac * (p.t - prevT);
+
+                            // Convert crossing point to 3D world space
+                            const impactWorld = p.originEye.clone()
+                                .addScaledVector(p.sightDir, tgt.dist_m)
+                                .addScaledVector(p.sightUp, yCross)
+                                .addScaledVector(p.sightRight, zCross);
+
+                            // Check distance from target center
+                            const dx = impactWorld.x - tgt.worldCenter.x;
+                            const dy = impactWorld.y - tgt.worldCenter.y;
+                            const radialErr = Math.sqrt(dx * dx + dy * dy);
+
+                            // If this is the currently selected target distance OR a direct hit on any steel gong
+                            if (radialErr <= tgt.radius_m || tgt.yd === latestCalcSolution.targetYd) {
+                                const isHit = radialErr <= tgt.radius_m;
+                                recordTargetImpact(tgt, dx, dy, isHit, impactWorld, tCross);
+                                p.completed = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (p.completed) break;
+
+                    // Check ground impact or max range (1650 yd)
+                    const curSpin = 1.25 * (p.sg + 1.2) * (p.t ** 1.83) * 0.0254;
+                    const curWorldY = p.originEye.y + p.sightDir.y * p.x + p.sightUp.y * p.y;
+                    if (curWorldY <= 0.02 || p.x > 1600) {
+                        const finalWorld = p.originEye.clone()
+                            .addScaledVector(p.sightDir, p.x)
+                            .addScaledVector(p.sightUp, p.y)
+                            .addScaledVector(p.sightRight, p.z + curSpin);
+                        spawnImpactSplash(finalWorld, false);
+                        sound.playDirtThud(p.x / p.speedSound);
+                        p.completed = true;
+                        break;
+                    }
+                }
+
+                // Update 3D tracer position & vapor trail
+                const curSpin = 1.25 * (p.sg + 1.2) * (p.t ** 1.83) * 0.0254;
+                const currentWorldPos = p.originEye.clone()
+                    .addScaledVector(p.sightDir, p.x)
+                    .addScaledVector(p.sightUp, p.y)
+                    .addScaledVector(p.sightRight, p.z + curSpin);
+
+                p.tracerMesh.position.copy(currentWorldPos);
+                // Scale tracer slightly with distance so it remains visible through the scope as vapor trace
+                const sScale = Math.max(1, p.x * 0.008);
+                p.tracerMesh.scale.setScalar(sScale);
+
+                p.trailPoints.push(currentWorldPos.clone());
+                if (p.trailPoints.length > 35) p.trailPoints.shift();
+                p.trailLine.geometry.setFromPoints(p.trailPoints);
+
+                if (p.completed) {
+                    document.getElementById('flight-status-badge').classList.add('hidden');
+                    setTimeout(() => {
+                        scene.remove(p.tracerMesh);
+                        scene.remove(p.trailLine);
+                    }, 1800);
+                    activeProjectiles.splice(i, 1);
+                }
+            }
+        }
+
+        function spawnImpactSplash(worldPos, isSteel) {
+            const splashGeo = new THREE.SphereGeometry(isSteel ? 0.09 : 0.14, 10, 10);
+            const splashMat = new THREE.MeshBasicMaterial({
+                color: isSteel ? 0xff9800 : 0xa1887f,
+                transparent: true,
+                opacity: 0.95
+            });
+            const splash = new THREE.Mesh(splashGeo, splashMat);
+            splash.position.copy(worldPos);
+            scene.add(splash);
+            setTimeout(() => scene.remove(splash), 6000);
+        }
+
+        function recordTargetImpact(tgt, dx_m, dy_m, isHit, impactWorld, tof) {
+            spawnImpactSplash(impactWorld, isHit);
+            const acousticDelay = tgt.dist_m / latestCalcSolution.speedSound;
+
+            if (isHit) {
+                tgt.swingVel = 4.2;
+                sound.playSteelGong(acousticDelay);
+            } else {
+                sound.playDirtThud(acousticDelay);
+            }
+
+            // Convert offset from target center into inches & MRAD
+            const dxIn = dx_m / 0.0254;
+            const dyIn = dy_m / 0.0254;
+            const totalIn = Math.sqrt(dxIn * dxIn + dyIn * dyIn);
+
+            shotImpacts.push({
+                yd: tgt.yd,
+                dx_m,
+                dy_m,
+                radius_m: tgt.radius_m,
+                isHit
+            });
+
+            // Update Telemetry Readout
+            const resEl = document.getElementById('last-shot-result');
+            if (isHit) {
+                resEl.innerText = totalIn < 2.5 ? 'BULLSEYE!' : 'STEEL HIT!';
+                resEl.className = 'text-emerald-400 font-bold';
+            } else {
+                resEl.innerText = 'MISS';
+                resEl.className = 'text-rose-400 font-bold';
+            }
+
+            document.getElementById('last-shot-offset').innerText = `${totalIn.toFixed(1)}" (${((totalIn * 0.0254 / tgt.dist_m) * 1000).toFixed(2)} mil)`;
+            document.getElementById('last-shot-vert').innerText = `${Math.abs(dyIn).toFixed(1)}" ${dyIn >= 0 ? 'HIGH' : 'LOW'}`;
+            document.getElementById('last-shot-horiz').innerText = `${Math.abs(dxIn).toFixed(1)}" ${dxIn >= 0 ? 'RIGHT' : 'LEFT'}`;
+
+            drawSpotterScope();
+        }
+
+        /**************************************************************************
+         * 8. SPOTTING SCOPE PiP TARGET PLOTTER & WIND FLAG INDICATOR
+         **************************************************************************/
+        const spotterCanvas = document.getElementById('spotter-canvas');
+        const sCtx = spotterCanvas.getContext('2d');
+
+        function drawSpotterScope() {
+            const w = spotterCanvas.width;
+            const h = spotterCanvas.height;
+            sCtx.clearRect(0, 0, w, h);
+
+            const curYd = parseFloat(document.getElementById('range').value) || 650;
+            document.getElementById('spotter-yd-label').innerText = curYd;
+
+            const tgt = targetObjects.find(t => t.yd === curYd) || targetObjects[3];
+            const cx = w / 2;
+            const cy = h / 2 + 4;
+            const drawRadius = 62; // Represents the steel gong radius on the PiP canvas
+            const pxPerMeter = drawRadius / tgt.radius_m;
+
+            // Background Grid (1-MRAD Grid at Target Distance)
+            sCtx.strokeStyle = 'rgba(148, 163, 184, 0.12)';
+            sCtx.lineWidth = 1;
+            const mradStepPx = (tgt.dist_m * 0.001) * pxPerMeter * 0.5; // 0.5 MRAD grid
+            if (mradStepPx > 6) {
+                for (let x = cx % mradStepPx; x < w; x += mradStepPx) {
+                    sCtx.beginPath(); sCtx.moveTo(x, 0); sCtx.lineTo(x, h); sCtx.stroke();
+                }
+                for (let y = cy % mradStepPx; y < h; y += mradStepPx) {
+                    sCtx.beginPath(); sCtx.moveTo(0, y); sCtx.lineTo(w, y); sCtx.stroke();
+                }
+            }
+
+            // Overhead Stand Straps
+            sCtx.strokeStyle = '#475569';
+            sCtx.lineWidth = 3;
+            sCtx.beginPath();
+            sCtx.moveTo(cx - drawRadius * 0.5, 0);
+            sCtx.lineTo(cx - drawRadius * 0.5, cy - drawRadius * 0.85);
+            sCtx.moveTo(cx + drawRadius * 0.5, 0);
+            sCtx.lineTo(cx + drawRadius * 0.5, cy - drawRadius * 0.85);
+            sCtx.stroke();
+
+            // Steel Gong Circle
+            sCtx.fillStyle = '#cbd5e1';
+            sCtx.strokeStyle = '#64748b';
+            sCtx.lineWidth = 2;
+            sCtx.beginPath();
+            sCtx.arc(cx, cy, drawRadius, 0, Math.PI * 2);
+            sCtx.fill();
+            sCtx.stroke();
+
+            // Inner 50% Ring
+            sCtx.strokeStyle = 'rgba(15, 23, 42, 0.35)';
+            sCtx.setLineDash([4, 3]);
+            sCtx.beginPath();
+            sCtx.arc(cx, cy, drawRadius * 0.6, 0, Math.PI * 2);
+            sCtx.stroke();
+            sCtx.setLineDash([]);
+
+            // Orange Bullseye Center
+            sCtx.fillStyle = '#ff9800';
+            sCtx.beginPath();
+            sCtx.arc(cx, cy, drawRadius * 0.32, 0, Math.PI * 2);
+            sCtx.fill();
+
+            // Crosshair inside bullseye
+            sCtx.strokeStyle = 'rgba(0,0,0,0.5)';
+            sCtx.beginPath();
+            sCtx.moveTo(cx - 8, cy); sCtx.lineTo(cx + 8, cy);
+            sCtx.moveTo(cx, cy - 8); sCtx.lineTo(cx, cy + 8);
+            sCtx.stroke();
+
+            // Plot Bullet Impacts
+            shotImpacts.forEach((imp, idx) => {
+                const isLatest = idx === shotImpacts.length - 1;
+                const ix = cx + imp.dx_m * pxPerMeter;
+                const iy = cy - imp.dy_m * pxPerMeter;
+
+                sCtx.fillStyle = imp.isHit ? (isLatest ? '#10b981' : '#059669') : '#f43f5e';
+                sCtx.strokeStyle = '#ffffff';
+                sCtx.lineWidth = isLatest ? 2 : 1;
+                sCtx.beginPath();
+                sCtx.arc(ix, iy, isLatest ? 5.5 : 4, 0, Math.PI * 2);
+                sCtx.fill();
+                sCtx.stroke();
+            });
+
+            // Wind Vector Indicator in top-right of Spotter Cam
+            const windRad = (latestCalcSolution.windClock * 30) * (Math.PI / 180);
+            const crosswind = Math.sin(windRad) * latestCalcSolution.windMph;
+            sCtx.fillStyle = '#38bdf8';
+            sCtx.font = '10px "JetBrains Mono", monospace';
+            sCtx.textAlign = 'right';
+            const arrow = crosswind > 0.2 ? '<<<' : (crosswind < -0.2 ? '>>>' : '---');
+            sCtx.fillText(`WIND ${arrow} ${latestCalcSolution.windMph}mph`, w - 8, 16);
+        }
+
+        /**************************************************************************
+         * 9. CAMERA AIMING, TURRET CONTROLS, LASER RANGEFINDER & GAME LOOP
+         **************************************************************************/
+        let cameraYaw = 0;
+        let cameraPitch = 0;
+        let isDraggingAim = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let isHoldingBreath = false;
+        let recoilPitch = 0;
+        let recoilBack = 0;
+        let boltAnimTime = 0;
+
+        // Focus camera onto a specific yardage target
+        function snapAimToTarget(yd) {
+            const tgt = targetObjects.find(t => t.yd === yd);
+            if (!tgt) return;
+            const dir = tgt.worldCenter.clone().sub(camera.position).normalize();
+            cameraYaw = Math.atan2(-dir.x, -dir.z);
+            cameraPitch = Math.asin(dir.y);
+
+            document.getElementById('range').value = yd;
+            document.getElementById('hud-lrf').innerText = `${yd} yd`;
+            calculate();
+            drawSpotterScope();
+
+            // Highlight active quick button
+            document.querySelectorAll('.q-yd').forEach(btn => {
+                if (parseInt(btn.dataset.yd) === yd) {
+                    btn.className = 'q-yd px-1.5 py-0.5 rounded bg-[#ff9800] text-black font-bold text-[11px] transition';
+                } else {
+                    btn.className = 'q-yd px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[11px] transition';
+                }
+            });
+        }
+
+        // Laser Rangefinder Ping (`R` key or button)
+        function pingLaserRangefinder() {
+            sound.playTurretClick();
+            const sightDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
+            let bestTgt = null;
+            let bestAngle = Infinity;
+
+            targetObjects.forEach(tgt => {
+                const toTgt = tgt.worldCenter.clone().sub(camera.position).normalize();
+                const angle = sightDir.angleTo(toTgt);
+                if (angle < bestAngle) {
+                    bestAngle = angle;
+                    bestTgt = tgt;
+                }
+            });
+
+            if (bestTgt) {
+                document.getElementById('hud-lrf').innerText = `${bestTgt.yd} yd`;
+                document.getElementById('range').value = bestTgt.yd;
+                calculate();
+                drawSpotterScope();
+            }
+        }
+
+        // Update Turret UI & 3D Turret Cap Rotation
+        function updateTurretDisplay() {
+            const elevDir = turretElevMrad >= 0 ? 'UP' : 'DN';
+            document.getElementById('turret-elev-val').innerHTML = `${Math.abs(turretElevMrad).toFixed(2)} <span class="text-xs text-[#ff9800]">${elevDir}</span>`;
+
+            const windDir = turretWindMrad >= 0 ? 'R' : 'L';
+            document.getElementById('turret-wind-val').innerHTML = `${Math.abs(turretWindMrad).toFixed(2)} <span class="text-xs text-[#ff9800]">${windDir}</span>`;
+
+            elevTurretMesh.rotation.y = turretElevMrad * 0.5;
+            windTurretMesh.rotation.y = turretWindMrad * 0.5;
+            if (isScoped) drawFFPReticle();
+        }
+
+        function adjustTurret(elevDelta, windDelta) {
+            turretElevMrad = Math.round((turretElevMrad + elevDelta) * 100) / 100;
+            turretWindMrad = Math.round((turretWindMrad + windDelta) * 100) / 100;
+            sound.playTurretClick();
+            updateTurretDisplay();
+        }
+
+        function autoDialG7Solution() {
+            calculate();
+            turretElevMrad = Math.round(latestCalcSolution.elevMrad * 100) / 100;
+            turretWindMrad = Math.round(latestCalcSolution.windMrad * 100) / 100;
+            sound.playTurretClick();
+            updateTurretDisplay();
+        }
+
+        function toggleScope(forceState) {
+            isScoped = typeof forceState === 'boolean' ? forceState : !isScoped;
+            const overlay = document.getElementById('scope-overlay');
+            const hip = document.getElementById('hip-crosshair');
+            if (isScoped) {
+                overlay.classList.remove('opacity-0');
+                overlay.classList.add('opacity-100');
+                hip.classList.add('hidden');
+            } else {
+                overlay.classList.remove('opacity-100');
+                overlay.classList.add('opacity-0');
+                hip.classList.remove('hidden');
+            }
+        }
+
+        // Mouse & Pointer Events on 3D Canvas
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 2) {
+                toggleScope();
+                return;
+            }
+            if (e.button === 1) {
+                e.preventDefault();
+                pingLaserRangefinder();
+                return;
+            }
+            isDraggingAim = true;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDraggingAim) return;
+            const dx = e.clientX - lastMouseX;
+            const dy = e.clientY - lastMouseY;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+
+            // Fine angular sensitivity when scoped in
+            const sens = isScoped ? (0.0018 / scopeMagnification) : 0.0022;
+            cameraYaw -= dx * sens;
+            cameraPitch = Math.max(-0.25, Math.min(0.35, cameraPitch - dy * sens));
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDraggingAim = false;
+        });
+
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        // Mouse Wheel Zoom (5x to 25x FFP Magnification)
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY < 0 ? 2 : -2;
+            scopeMagnification = Math.max(5, Math.min(25, scopeMagnification + delta));
+            document.getElementById('scope-zoom-val').innerText = `${scopeMagnification}x`;
+        }, { passive: false });
+
+        // Keyboard Shortcuts
+        window.addEventListener('keydown', (e) => {
+            if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+
+            if (e.code === 'Space') {
+                e.preventDefault();
+                fireShot();
+            } else if (e.code === 'KeyZ') {
+                toggleScope();
+            } else if (e.code === 'KeyR') {
+                pingLaserRangefinder();
+            } else if (e.code === 'KeyT') {
+                autoDialG7Solution();
+            } else if (e.code === 'KeyB') {
+                document.getElementById('btn-toggle-calc').click();
+            } else if (e.code === 'Digit0') {
+                turretElevMrad = 0;
+                turretWindMrad = 0;
+                sound.playTurretClick();
+                updateTurretDisplay();
+            } else if (e.code === 'ArrowUp' || e.code === 'KeyW') {
+                e.preventDefault();
+                adjustTurret(0.1, 0);
+            } else if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+                e.preventDefault();
+                adjustTurret(-0.1, 0);
+            } else if (e.code === 'ArrowRight' || e.code === 'KeyE') {
+                e.preventDefault();
+                adjustTurret(0, 0.1);
+            } else if (e.code === 'ArrowLeft' || e.code === 'KeyQ') {
+                e.preventDefault();
+                adjustTurret(0, -0.1);
+            } else if (e.key === 'Shift') {
+                isHoldingBreath = true;
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'Shift') isHoldingBreath = false;
+        });
+
+        // UI Button Listeners
+        document.getElementById('btn-lrf-ping').addEventListener('click', pingLaserRangefinder);
+        document.getElementById('btn-sync-turrets').addEventListener('click', autoDialG7Solution);
+        document.getElementById('btn-zero-turrets').addEventListener('click', () => {
+            turretElevMrad = 0;
+            turretWindMrad = 0;
+            sound.playTurretClick();
+            updateTurretDisplay();
+        });
+        document.getElementById('btn-ads-toggle').addEventListener('click', () => toggleScope());
+        document.getElementById('btn-fire').addEventListener('click', fireShot);
+        document.getElementById('btn-clear-impacts').addEventListener('click', () => {
+            shotImpacts.length = 0;
+            drawSpotterScope();
+        });
+
+        document.getElementById('elev-up').addEventListener('click', () => adjustTurret(0.1, 0));
+        document.getElementById('elev-dn').addEventListener('click', () => adjustTurret(-0.1, 0));
+        document.getElementById('elev-up-fine').addEventListener('click', () => adjustTurret(0.01, 0));
+        document.getElementById('elev-dn-fine').addEventListener('click', () => adjustTurret(-0.01, 0));
+
+        document.getElementById('wind-r').addEventListener('click', () => adjustTurret(0, 0.1));
+        document.getElementById('wind-l').addEventListener('click', () => adjustTurret(0, -0.1));
+        document.getElementById('wind-r-fine').addEventListener('click', () => adjustTurret(0, 0.01));
+        document.getElementById('wind-l-fine').addEventListener('click', () => adjustTurret(0, -0.01));
+
+        // Minimize / Expand Calculator Panel
+        let calcExpanded = true;
+        document.getElementById('btn-toggle-calc').addEventListener('click', () => {
+            calcExpanded = !calcExpanded;
+            document.getElementById('calc-body').style.display = calcExpanded ? 'block' : 'none';
+        });
+
+        // Quick Yardage Buttons
+        document.querySelectorAll('.q-yd').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const yd = parseInt(btn.dataset.yd);
+                snapAimToTarget(yd);
+            });
+        });
+
+        // Attach User's Calculator Input Listeners
+        document.querySelectorAll('#calc-body input').forEach(input => {
+            input.addEventListener('input', () => {
+                calculate();
+                drawSpotterScope();
+            });
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            if (isScoped) drawFFPReticle();
+        });
+
+        /**************************************************************************
+         * 10. MAIN RENDER & SIMULATION LOOP
+         **************************************************************************/
+        let prevTime = performance.now();
+
+        function animate(now) {
+            requestAnimationFrame(animate);
+            const dt = Math.min(0.05, (now - prevTime) / 1000);
+            prevTime = now;
+
+            // Subtle breathing sway (stabilized when holding Shift)
+            const swayAmp = isHoldingBreath ? 0.00004 : (isScoped ? 0.00028 : 0.0006);
+            const swayX = Math.sin(now * 0.0016) * swayAmp;
+            const swayY = Math.cos(now * 0.0023) * swayAmp;
+
+            // Smoothly decay recoil
+            recoilPitch = THREE.MathUtils.lerp(recoilPitch, 0, dt * 10);
+            recoilBack = THREE.MathUtils.lerp(recoilBack, 0, dt * 12);
+
+            // Apply Camera Orientation & FOV Zoom
+            camera.rotation.y = cameraYaw + swayX;
+            camera.rotation.x = cameraPitch + swayY + recoilPitch;
+
+            const targetFov = isScoped ? (50 / scopeMagnification) : 50;
+            if (Math.abs(camera.fov - targetFov) > 0.01) {
+                camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, dt * 14);
+                camera.updateProjectionMatrix();
+            }
+
+            // Weapon Rig ADS Transition & Bolt Cycle Animation
+            const targetRigPos = isScoped ? ADS_POS : HIP_POS;
+            weaponRig.position.lerp(targetRigPos, dt * 14);
+            weaponRig.position.z += recoilBack;
+            rifleGroup.visible = !isScoped || (camera.fov > 18); // Hide external mesh when deep inside scope tube
+
+            if (boltAnimTime > 0) {
+                boltAnimTime = Math.max(0, boltAnimTime - dt);
+                const p = 1.0 - (boltAnimTime / 0.75);
+                if (p < 0.25) {
+                    handlePivot.rotation.z = (p / 0.25) * 1.1;
+                } else if (p < 0.55) {
+                    handlePivot.rotation.z = 1.1;
+                    boltGroup.position.z = -0.16 + ((p - 0.25) / 0.3) * 0.065;
+                } else if (p < 0.85) {
+                    handlePivot.rotation.z = 1.1;
+                    boltGroup.position.z = -0.095 - ((p - 0.55) / 0.3) * 0.065;
+                } else {
+                    handlePivot.rotation.z = (1.0 - (p - 0.85) / 0.15) * 1.1;
+                    boltGroup.position.z = -0.16;
+                }
+            }
+
+            // Step Active Projectiles using User's Exact G7 RK4 Solver
+            stepProjectiles(dt);
+
+            // Update Reactive Steel Target Swing Physics
+            targetObjects.forEach(t => {
+                if (Math.abs(t.swingAngle) > 0.0001 || Math.abs(t.swingVel) > 0.0001) {
+                    const springAcc = -28.0 * Math.sin(t.swingAngle) - 2.6 * t.swingVel;
+                    t.swingVel += springAcc * dt;
+                    t.swingAngle += t.swingVel * dt;
+                    t.pivotGroup.rotation.x = -t.swingAngle;
+                }
+            });
+
+            // Animate Wind Flags according to Calculator's Wind Speed & Wind Clock
+            const windRad = (latestCalcSolution.windClock * 30.0) * (Math.PI / 180);
+            const windFactor = Math.min(1.4, latestCalcSolution.windMph / 18.0);
+            windFlags.forEach((flag, idx) => {
+                flag.rotation.y = windRad + Math.PI / 2 + Math.sin(now * 0.008 + idx) * 0.12 * windFactor;
+                flag.rotation.z = (Math.PI / 2) * (0.2 + 0.75 * windFactor) + Math.cos(now * 0.011 + idx) * 0.08 * windFactor;
+            });
+
+            if (isScoped) {
+                drawFFPReticle();
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function () {
+            calculate();
+            snapAimToTarget(650);
+            autoDialG7Solution();
+            drawSpotterScope();
+            animate(performance.now());
+        };
+    </script>
 </body>
 </html>
